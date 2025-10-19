@@ -1,0 +1,14 @@
+{
+  "argv": [
+    "python",
+    "-m",
+    "agent_client_kernel",
+    "-f",
+    "{connection_file}"
+  ],
+  "display_name": "Agent Client Protocol",
+  "language": "agent-chat",
+  "metadata": {
+    "debugger": false
+  }
+}

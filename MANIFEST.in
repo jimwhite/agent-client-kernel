@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+include ARCHITECTURE.md
+include CONTRIBUTING.md
+include requirements.txt
+recursive-include agent_client_kernel/kernelspec *
+recursive-include examples *.md
+recursive-include tests *.py

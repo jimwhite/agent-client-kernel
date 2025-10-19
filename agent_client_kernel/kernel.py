@@ -34,6 +34,10 @@ class AgentClientKernel(Kernel):
             return
             
         try:
+            # Initialize the response queue if not already done
+            if self.response_queue is None:
+                self.response_queue = queue.Queue()
+                
             self.agent_process = subprocess.Popen(
                 agent_command,
                 stdin=subprocess.PIPE,

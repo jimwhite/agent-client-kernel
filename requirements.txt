@@ -1,0 +1,2 @@
+ipykernel>=6.0.0
+jupyter-client>=7.0.0

@@ -1,6 +1,25 @@
 # Agent Client Kernel
 
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-GPL--3.0-green)](LICENSE)
+[![Status](https://img.shields.io/badge/status-active-success)]()
+
 A Jupyter kernel implementation that acts as a client for the Zed Agent Client Protocol (ACP). This kernel allows users to interact with AI coding agents directly from Jupyter notebooks by entering chat messages in notebook cells.
+
+## Quick Start
+
+```bash
+# Install the kernel
+pip install -e .
+python -m agent_client_kernel.install --user
+
+# Start Jupyter
+jupyter notebook
+
+# In a new notebook with "Agent Client Protocol" kernel:
+# Start agent: !start-agent python /path/to/agent.py
+# Chat: Hello, can you help me?
+```
 
 ## Features
 

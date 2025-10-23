@@ -3,132 +3,100 @@ The main file for the Agent Client Protocol Jupyter kernel
 """
 
 import asyncio
+import asyncio.subprocess as aio_subprocess
 import logging
+import os
 import sys
-from typing import Any
+from pathlib import Path
 
 from metakernel import MetaKernel
 
 from acp import (
-    Agent,
-    AgentSideConnection,
-    AuthenticateRequest,
-    AuthenticateResponse,
-    CancelNotification,
+    Client,
+    ClientSideConnection,
     InitializeRequest,
-    InitializeResponse,
-    LoadSessionRequest,
-    LoadSessionResponse,
     NewSessionRequest,
-    NewSessionResponse,
     PromptRequest,
-    PromptResponse,
-    SetSessionModeRequest,
-    SetSessionModeResponse,
-    session_notification,
+    RequestError,
+    SessionNotification,
     text_block,
-    update_agent_message,
     PROTOCOL_VERSION,
 )
-from acp.schema import AgentCapabilities, McpCapabilities, PromptCapabilities
 
 from . import __version__, KERNEL_NAME, DISPLAY_NAME
 
 
-class ACPAgent(Agent):
-    """ACP Agent implementation for the Jupyter kernel"""
+class ACPClient(Client):
+    """ACP Client implementation for the Jupyter kernel"""
     
-    def __init__(self, conn: AgentSideConnection, kernel) -> None:
-        self._conn = conn
+    def __init__(self, kernel) -> None:
         self._kernel = kernel
-        self._next_session_id = 0
         self._log = logging.getLogger(__name__)
     
-    async def _send_chunk(self, session_id: str, content: Any) -> None:
-        """Send a chunk of content to the client"""
-        await self._conn.sessionUpdate(
-            session_notification(
-                session_id,
-                update_agent_message(content),
-            )
-        )
+    async def requestPermission(self, params):
+        """Handle permission requests from the agent"""
+        self._log.info("Permission requested: %s", params)
+        # For now, auto-approve all permissions
+        # In a real implementation, this should prompt the user
+        return {"approved": True}
     
-    async def initialize(self, params: InitializeRequest) -> InitializeResponse:
-        """Initialize the agent"""
-        self._log.info("Received initialize request")
-        mcp_caps = McpCapabilities(http=False, sse=False)
-        prompt_caps = PromptCapabilities(audio=False, embeddedContext=False, image=False)
-        agent_caps = AgentCapabilities(
-            loadSession=False,
-            mcpCapabilities=mcp_caps,
-            promptCapabilities=prompt_caps,
-        )
-        return InitializeResponse(
-            protocolVersion=PROTOCOL_VERSION,
-            agentCapabilities=agent_caps,
-        )
+    async def writeTextFile(self, params):
+        """Handle file write requests"""
+        raise RequestError.method_not_found("fs/write_text_file")
     
-    async def authenticate(self, params: AuthenticateRequest) -> AuthenticateResponse | None:
-        """Authenticate the agent"""
-        self._log.info("Received authenticate request")
-        return AuthenticateResponse()
+    async def readTextFile(self, params):
+        """Handle file read requests"""
+        raise RequestError.method_not_found("fs/read_text_file")
     
-    async def newSession(self, params: NewSessionRequest) -> NewSessionResponse:
-        """Create a new session"""
-        self._log.info("Received new session request")
-        session_id = str(self._next_session_id)
-        self._next_session_id += 1
-        return NewSessionResponse(sessionId=session_id)
+    async def createTerminal(self, params):
+        """Handle terminal creation requests"""
+        raise RequestError.method_not_found("terminal/create")
     
-    async def loadSession(self, params: LoadSessionRequest) -> LoadSessionResponse | None:
-        """Load a session"""
-        self._log.info("Received load session request")
-        return LoadSessionResponse()
+    async def terminalOutput(self, params):
+        """Handle terminal output"""
+        raise RequestError.method_not_found("terminal/output")
     
-    async def setSessionMode(self, params: SetSessionModeRequest) -> SetSessionModeResponse | None:
-        """Set session mode"""
-        self._log.info("Received set session mode request")
-        return SetSessionModeResponse()
+    async def releaseTerminal(self, params):
+        """Handle terminal release"""
+        raise RequestError.method_not_found("terminal/release")
     
-    async def prompt(self, params: PromptRequest) -> PromptResponse:
-        """Handle a prompt request"""
-        self._log.info("Received prompt request")
+    async def waitForTerminalExit(self, params):
+        """Handle terminal exit wait"""
+        raise RequestError.method_not_found("terminal/wait_for_exit")
+    
+    async def killTerminal(self, params):
+        """Handle terminal kill"""
+        raise RequestError.method_not_found("terminal/kill")
+    
+    async def sessionUpdate(self, params: SessionNotification) -> None:
+        """Handle session updates from the agent"""
+        update = params.update
+        if isinstance(update, dict):
+            kind = update.get("sessionUpdate")
+            content = update.get("content")
+        else:
+            kind = getattr(update, "sessionUpdate", None)
+            content = getattr(update, "content", None)
         
-        # Extract text from all blocks in the prompt
-        prompt_text = []
-        for block in params.prompt:
-            text = getattr(block, "text", "")
-            if text:
-                prompt_text.append(text)
+        if kind != "agent_message_chunk" or content is None:
+            return
         
-        full_prompt = "\n".join(prompt_text)
+        if isinstance(content, dict):
+            text = content.get("text", "")
+        else:
+            text = getattr(content, "text", "")
         
-        # Send the processed response back
-        await self._send_chunk(
-            params.sessionId,
-            text_block(f"Processing: {full_prompt}"),
-        )
-        
-        # Echo back the prompt for now (can be extended with actual agent logic)
-        await self._send_chunk(
-            params.sessionId,
-            text_block(f"Response: {full_prompt}"),
-        )
-        
-        return PromptResponse(stopReason="end_turn")
-    
-    async def cancel(self, params: CancelNotification) -> None:
-        """Handle cancel notification"""
-        self._log.info("Received cancel notification")
+        if text:
+            # Send output to notebook
+            self._kernel._agent_output.append(text)
     
     async def extMethod(self, method: str, params: dict) -> dict:
         """Handle extension method calls"""
-        self._log.info("Received extension method call: %s", method)
-        return {"status": "ok"}
+        raise RequestError.method_not_found(method)
     
     async def extNotification(self, method: str, params: dict) -> None:
         """Handle extension notifications"""
-        self._log.info("Received extension notification: %s", method)
+        pass
 
 
 class ACPKernel(MetaKernel):
@@ -159,25 +127,126 @@ class ACPKernel(MetaKernel):
         self._log = logging.getLogger(__name__)
         self._log.info("Starting ACP kernel %s", __version__)
         
-        # ACP session tracking
+        # ACP connection tracking
         self._session_id = None
-        self._agent = None
         self._conn = None
+        self._proc = None
+        self._agent_output = []
         self._event_loop = None
+        
+        # Agent configuration - can be overridden via environment variables
+        self._agent_command = os.environ.get('ACP_AGENT_COMMAND', 'codex-acp')
+        self._agent_args = os.environ.get('ACP_AGENT_ARGS', '').split() if os.environ.get('ACP_AGENT_ARGS') else []
     
     def get_usage(self):
         """Return usage information"""
-        return """Agent Client Protocol Kernel
+        return f"""Agent Client Protocol Kernel
 
 This kernel allows interaction with ACP agents directly from Jupyter notebooks.
 Simply type your prompts and execute cells to communicate with the agent.
 
-The kernel implements the full ACP specification including:
-- Session management
-- Authentication
-- Prompt handling
-- Cancellation support
+Current agent: {self._agent_command} {' '.join(self._agent_args)}
+
+Configuration:
+- Set ACP_AGENT_COMMAND environment variable to change the agent command
+- Set ACP_AGENT_ARGS environment variable to pass additional arguments
+- Example: ACP_AGENT_COMMAND=codex-acp ACP_AGENT_ARGS="--verbose"
+
+Supported agents:
+- codex-acp (OpenAI Codex, requires OPENAI_API_KEY or CODEX_API_KEY)
+- Any ACP-compatible agent
 """
+    
+    async def _start_agent(self):
+        """Start the ACP agent process"""
+        if self._proc is not None:
+            return
+        
+        self._log.info("Starting agent: %s %s", self._agent_command, ' '.join(self._agent_args))
+        
+        # Find the agent executable
+        program_path = Path(self._agent_command)
+        spawn_program = self._agent_command
+        spawn_args = self._agent_args
+        
+        if program_path.exists() and not os.access(program_path, os.X_OK):
+            spawn_program = sys.executable
+            spawn_args = [str(program_path), *self._agent_args]
+        
+        # Start the agent process
+        self._proc = await asyncio.create_subprocess_exec(
+            spawn_program,
+            *spawn_args,
+            stdin=aio_subprocess.PIPE,
+            stdout=aio_subprocess.PIPE,
+            stderr=aio_subprocess.PIPE,
+        )
+        
+        if self._proc.stdin is None or self._proc.stdout is None:
+            raise RuntimeError("Agent process does not expose stdio pipes")
+        
+        # Create client connection
+        client_impl = ACPClient(self)
+        self._conn = ClientSideConnection(
+            lambda _agent: client_impl,
+            self._proc.stdin,
+            self._proc.stdout
+        )
+        
+        # Initialize the agent
+        await self._conn.initialize(
+            InitializeRequest(protocolVersion=PROTOCOL_VERSION, clientCapabilities=None)
+        )
+        
+        # Create a new session
+        session = await self._conn.newSession(
+            NewSessionRequest(mcpServers=[], cwd=os.getcwd())
+        )
+        self._session_id = session.sessionId
+        
+        self._log.info("Agent started with session ID: %s", self._session_id)
+    
+    async def _stop_agent(self):
+        """Stop the ACP agent process"""
+        if self._proc is None:
+            return
+        
+        self._log.info("Stopping agent")
+        
+        if self._proc.returncode is None:
+            self._proc.terminate()
+            try:
+                await asyncio.wait_for(self._proc.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                self._proc.kill()
+                await self._proc.wait()
+        
+        self._proc = None
+        self._conn = None
+        self._session_id = None
+    
+    async def _send_prompt(self, code: str) -> str:
+        """Send a prompt to the agent and get the response"""
+        # Ensure agent is started
+        if self._conn is None or self._session_id is None:
+            await self._start_agent()
+        
+        # Clear previous output
+        self._agent_output = []
+        
+        # Send the prompt
+        await self._conn.prompt(
+            PromptRequest(
+                sessionId=self._session_id,
+                prompt=[text_block(code)],
+            )
+        )
+        
+        # Wait a bit for the response to accumulate
+        await asyncio.sleep(0.5)
+        
+        # Return the accumulated output
+        return ''.join(self._agent_output) if self._agent_output else "No response from agent"
     
     def do_execute_direct(self, code):
         """
@@ -186,11 +255,37 @@ The kernel implements the full ACP specification including:
         if not code.strip():
             return ""
         
-        # For now, simulate agent interaction
-        # In a full implementation, this would communicate with an actual ACP agent
-        result = f"Agent response to: {code}"
-        return result
+        # Get or create event loop
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Run the async prompt
+        try:
+            result = loop.run_until_complete(self._send_prompt(code))
+            return result
+        except Exception as e:
+            self._log.error("Error sending prompt: %s", e, exc_info=True)
+            return f"Error: {str(e)}\n\nMake sure the ACP agent is configured correctly.\nCurrent agent: {self._agent_command}"
+    
+    def do_shutdown(self, restart):
+        """Shutdown the kernel"""
+        # Stop the agent process
+        if self._proc is not None:
+            try:
+                loop = asyncio.get_event_loop()
+                loop.run_until_complete(self._stop_agent())
+            except Exception as e:
+                self._log.error("Error stopping agent: %s", e)
+        
+        return super().do_shutdown(restart)
     
     def repr(self, data):
         """Return string representation of data"""
         return str(data)
+

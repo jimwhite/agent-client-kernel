@@ -1,0 +1,19 @@
+{
+    "name": "ACL2-Jupyter",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "forwardPorts": [
+        8899
+    ],
+    "portsAttributes": {
+        "8899": {
+            "label": "Jupyter",
+            "requireLocalPort": true
+        }
+    },
+    "containerEnv": {
+        "JUPYTER_PORT": "8899",
+        // "RESTARTABLE": "yes"
+    }
+}

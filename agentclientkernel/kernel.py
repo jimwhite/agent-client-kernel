@@ -223,7 +223,9 @@ Configuration Magic Commands:
 - %mcp_add NAME COMMAND [ARGS...] - add MCP server
 - %mcp_list - list MCP servers
 - %mcp_remove NAME - remove MCP server
+- %mcp_clear - remove all MCP servers
 - %permissions [MODE] - configure permissions (auto/manual/deny)
+- %permissions_list - show permission history
 - %new_session [CWD] - create new session
 - %session_info - show session information
 - %session_restart - restart current session

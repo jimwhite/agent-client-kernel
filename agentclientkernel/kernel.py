@@ -186,27 +186,15 @@ class ACPKernel(MetaKernel):
     def _load_magics(self):
         """Load custom magic commands"""
         import importlib
-        import os
         
-        # Get path to magics directory
-        magics_dir = os.path.join(os.path.dirname(__file__), 'magics')
-        
-        # Load each magic module
-        magic_modules = [
-            'mcp_magic',
-            'permissions_magic', 
-            'session_magic',
-            'agent_config_magic'
-        ]
-        
-        for module_name in magic_modules:
-            try:
-                module = importlib.import_module(f'agentclientkernel.magics.{module_name}')
-                if hasattr(module, 'register_magics'):
-                    module.register_magics(self)
-                    self._log.info(f"Loaded magic: {module_name}")
-            except Exception as e:
-                self._log.error(f"Failed to load magic {module_name}: {e}")
+        # Load the unified agent magic module
+        try:
+            module = importlib.import_module('agentclientkernel.magics.agent_magic')
+            if hasattr(module, 'register_magics'):
+                module.register_magics(self)
+                self._log.info("Loaded unified agent magic")
+        except Exception as e:
+            self._log.error(f"Failed to load agent magic: {e}")
     
     def get_usage(self):
         """Return usage information"""
@@ -217,20 +205,30 @@ Simply type your prompts and execute cells to communicate with the agent.
 
 Current agent: {self._agent_command} {' '.join(self._agent_args)}
 
-Configuration Magic Commands:
-- %agent_config [COMMAND [ARGS...]] - configure agent command
-- %agent_env [KEY=VALUE] - set agent environment variables
-- %mcp_add NAME COMMAND [ARGS...] - add MCP server
-- %mcp_list - list MCP servers
-- %mcp_remove NAME - remove MCP server
-- %mcp_clear - remove all MCP servers
-- %permissions [MODE] - configure permissions (auto/manual/deny)
-- %permissions_list - show permission history
-- %new_session [CWD] - create new session
-- %session_info - show session information
-- %session_restart - restart current session
+Agent Management Command:
+Use '%agent' with subcommands to manage configuration and sessions:
 
-For help on any magic, use: %magic_name?
+  MCP Server Configuration:
+    %agent mcp add NAME COMMAND [ARGS...]  - add MCP server
+    %agent mcp list                        - list MCP servers
+    %agent mcp remove NAME                 - remove MCP server
+    %agent mcp clear                       - clear all MCP servers
+
+  Permission Configuration:
+    %agent permissions [auto|manual|deny]  - set permission mode
+    %agent permissions list                - show permission history
+
+  Session Management:
+    %agent session new [CWD]               - create new session
+    %agent session info                    - show session information
+    %agent session restart                 - restart current session
+
+  Agent Configuration:
+    %agent config [COMMAND [ARGS...]]     - configure agent command
+    %agent env [KEY=VALUE]                 - set environment variables
+
+For detailed help: %agent (shows all subcommands)
+For help on any magic: %agent?
 
 Supported agents:
 - codex-acp (OpenAI Codex, requires OPENAI_API_KEY or CODEX_API_KEY)

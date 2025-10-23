@@ -83,28 +83,29 @@ The agent will respond with code, explanations, and can help with:
 
 ### Magic Commands
 
-The kernel provides several magic commands for configuration and session management:
-
-**Agent Configuration:**
-- `%agent_config [COMMAND [ARGS...]]` - Configure the agent command
-- `%agent_env [KEY=VALUE]` - Set agent environment variables
+The kernel provides a unified `%agent` magic command for all configuration and session management:
 
 **MCP Server Configuration:**
-- `%mcp_add NAME COMMAND [ARGS...]` - Add an MCP server
-- `%mcp_list` - List configured MCP servers
-- `%mcp_remove NAME` - Remove an MCP server
-- `%mcp_clear` - Remove all MCP servers
+- `%agent mcp add NAME COMMAND [ARGS...]` - Add an MCP server
+- `%agent mcp list` - List configured MCP servers
+- `%agent mcp remove NAME` - Remove an MCP server
+- `%agent mcp clear` - Remove all MCP servers
 
 **Permission Configuration:**
-- `%permissions [MODE]` - Set permission mode (auto/manual/deny)
-- `%permissions_list` - View permission request history
+- `%agent permissions [auto|manual|deny]` - Set permission mode
+- `%agent permissions list` - View permission request history
 
 **Session Management:**
-- `%new_session [CWD]` - Create a new session
-- `%session_info` - Show current session information
-- `%session_restart` - Restart the current session
+- `%agent session new [CWD]` - Create a new session
+- `%agent session info` - Show current session information
+- `%agent session restart` - Restart the current session
 
-Use `%magic_name?` to get help on any magic command.
+**Agent Configuration:**
+- `%agent config [COMMAND [ARGS...]]` - Configure the agent command
+- `%agent env [KEY=VALUE]` - Set agent environment variables
+
+Use `%agent` without arguments to see all available subcommands.
+Use `%agent?` for detailed help on the magic command.
 
 See the example notebooks in `examples/` for demonstrations:
 - `basic_usage.ipynb` - Basic agent interaction

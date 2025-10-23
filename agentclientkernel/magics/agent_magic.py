@@ -7,6 +7,29 @@ import os
 
 class AgentMagic(Magic):
     """Unified magic command for all agent configuration and management"""
+    
+    def get_help_on(self, info, level=0, none_on_fail=False):
+        """Provide help for agent subcommands.
+        
+        This method is called by the MetaKernel help system when users type
+        expressions like '%agent mcp?' or use '%help %agent mcp'.
+        """
+        if not info.get('code'):
+            return None if none_on_fail else ''
+        
+        expr = info.get('obj', info.get('code', '')).strip()
+        
+        # Delegate to the kernel's helper method for subcommands
+        if hasattr(self.kernel, '_get_agent_subcommand_help'):
+            result = self.kernel._get_agent_subcommand_help(expr)
+            if result:
+                return result
+        
+        # If no specific help found, return None or default message
+        if none_on_fail:
+            return None
+        else:
+            return None
 
     def line_agent(self, args=''):
         """

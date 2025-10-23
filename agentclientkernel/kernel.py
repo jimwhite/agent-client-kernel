@@ -267,9 +267,117 @@ Supported agents:
             except:
                 return "No help available for %agent"
         
+        # Handle agent subcommands like 'agent mcp', 'agent session', etc.
+        expr_lower = expr.lower()
+        if expr_lower.startswith('agent ') or expr_lower.startswith('%agent '):
+            # Extract the subcommand
+            parts = expr.split(None, 1)
+            if len(parts) > 1:
+                subcommand = parts[1].lower()
+                return self._get_agent_subcommand_help(subcommand)
+        
+        # Handle standalone subcommands like 'mcp', 'session', etc.
+        # These are treated as agent subcommands
+        subcommand_help = self._get_agent_subcommand_help(expr_lower)
+        if subcommand_help:
+            return subcommand_help
+        
         # For anything else, return None or indicate no help available
         if none_on_fail:
             return None
+        else:
+            return None
+    
+    def _get_agent_subcommand_help(self, subcommand):
+        """Get help text for agent subcommands.
+        
+        Args:
+            subcommand: The subcommand name (e.g., 'mcp', 'session', 'permissions', 'config', 'env')
+        
+        Returns:
+            Help text for the subcommand, or None if not recognized
+        """
+        subcommand = subcommand.lower().strip()
+        
+        if subcommand == 'mcp':
+            return """MCP Server Configuration
+
+MCP (Model Context Protocol) servers provide additional capabilities to the agent.
+
+Commands:
+  %agent mcp add NAME COMMAND [ARGS...]
+      Add an MCP server to the session
+      Example: %agent mcp add filesystem /usr/local/bin/mcp-server-filesystem
+      
+  %agent mcp list
+      List all configured MCP servers
+      
+  %agent mcp remove NAME
+      Remove a specific MCP server by name
+      
+  %agent mcp clear
+      Remove all configured MCP servers
+"""
+        
+        elif subcommand == 'session':
+            return """Session Management
+
+Sessions represent an active connection to an ACP agent.
+
+Commands:
+  %agent session new [CWD]
+      Create a new session, optionally with a specific working directory
+      Example: %agent session new /path/to/project
+      
+  %agent session info
+      Display information about the current session
+      
+  %agent session restart
+      Restart the current session with the same configuration
+"""
+        
+        elif subcommand == 'permissions':
+            return """Permission Configuration
+
+Control how the kernel handles permission requests from the agent.
+
+Commands:
+  %agent permissions [auto|manual|deny]
+      Set the permission mode:
+      - auto: automatically approve all requests (default)
+      - manual: prompt for each request (not yet implemented)
+      - deny: automatically deny all requests
+      
+  %agent permissions list
+      Show the history of permission requests
+"""
+        
+        elif subcommand == 'config':
+            return """Agent Configuration
+
+Configure the ACP agent command and arguments.
+
+Commands:
+  %agent config [COMMAND [ARGS...]]
+      Set the agent command to use
+      Example: %agent config codex-acp --verbose
+      
+      Without arguments, displays the current configuration
+"""
+        
+        elif subcommand == 'env':
+            return """Environment Variables
+
+Set environment variables for the agent.
+
+Commands:
+  %agent env [KEY=VALUE]
+      Set an environment variable
+      Example: %agent env OPENAI_API_KEY=sk-...
+      
+      Without arguments, displays relevant environment variables
+"""
+        
         else:
             return None
     

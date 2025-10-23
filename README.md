@@ -2,18 +2,19 @@
 
 A Jupyter Kernel for the Agent Client Protocol (ACP)
 
-This kernel allows you to interact with ACP agents directly from Jupyter notebooks. It provides a minimal working integration between Jupyter and the [Agent Client Protocol](https://github.com/PsiACE/agent-client-protocol-python).
+This kernel allows you to interact with ACP agents directly from Jupyter notebooks. It provides a working integration between Jupyter and the [Agent Client Protocol](https://github.com/PsiACE/agent-client-protocol-python) using [MetaKernel](https://github.com/Calysto/metakernel) as the base.
 
 ## About
 
-This project implements a Jupyter kernel that serves coding agents via the Agent Client Protocol. The implementation is based on the structure of the [AIML Chatbot Kernel](https://github.com/paulovn/aiml-chatbot-kernel) example, providing a clean and minimal integration.
+This project implements a Jupyter kernel that serves coding agents via the Agent Client Protocol. The implementation uses MetaKernel as the base class, which provides built-in magics, shell commands, and other useful features.
 
 ## Features
 
-- Simple Jupyter kernel interface for ACP agents
-- Easy installation using pip
-- Echo-based demonstration agent (extensible for real agents)
+- Full ACP agent implementation with proper session management
+- Based on MetaKernel for enhanced functionality
+- Support for initialize, authenticate, newSession, and prompt operations
 - Compatible with JupyterLab and Jupyter Notebook
+- Built-in MetaKernel magics (help, shell, file operations, etc.)
 
 ## Installation
 
@@ -22,12 +23,6 @@ Install the package and kernel:
 ```bash
 pip install -e .
 python -m agentclientkernel install --user
-```
-
-Or use the entry point:
-
-```bash
-jupyter-agentclientkernel install --user
 ```
 
 ## Usage
@@ -40,7 +35,7 @@ See the example notebook in `examples/basic_usage.ipynb` for a demonstration.
 
 ## Development
 
-This project provides a minimal working integration between Jupyter and the Agent Client Protocol.
+This project provides a working integration between Jupyter and the Agent Client Protocol using MetaKernel.
 
 ### Project Structure
 
@@ -48,8 +43,7 @@ This project provides a minimal working integration between Jupyter and the Agen
 agentclientkernel/
 ├── __init__.py        # Package metadata
 ├── __main__.py        # Entry point for kernel application
-├── kernel.py          # Main kernel implementation
-├── install.py         # Installation utilities
+├── kernel.py          # Main kernel and agent implementation
 └── resources/         # Kernel logos and resources
 ```
 
@@ -59,11 +53,12 @@ agentclientkernel/
 - ipykernel >= 4.0
 - jupyter-client >= 4.0  
 - agent-client-protocol >= 0.4.0
+- metakernel >= 0.30.0
 
 ## Uninstallation
 
 ```bash
-jupyter-agentclientkernel remove
+jupyter kernelspec remove agentclient
 pip uninstall agentclientkernel
 ```
 

@@ -16,7 +16,7 @@ with open('README.md') as f:
 setup_args = dict(
     name=PKGNAME,
     version=pkg.__version__,
-    description='A Jupyter Kernel for Agent Client Protocol',
+    description='A Jupyter Kernel for Agent Client Protocol using MetaKernel',
     long_description=readme,
     long_description_content_type='text/markdown',
     license='MIT',
@@ -30,7 +30,8 @@ setup_args = dict(
         "setuptools",
         "ipykernel >= 4.0",
         "jupyter-client >= 4.0",
-        "agent-client-protocol >= 0.4.0"
+        "agent-client-protocol >= 0.4.0",
+        "metakernel >= 0.30.0"
     ],
     
     entry_points={

@@ -50,9 +50,29 @@ class ACPClient(Client):
     async def requestPermission(self, params):
         """Handle permission requests from the agent"""
         self._log.info("Permission requested: %s", params)
-        # For now, auto-approve all permissions
-        # In a real implementation, this should prompt the user
-        return {"approved": True}
+        
+        # Get permission mode from kernel (default: auto)
+        mode = getattr(self._kernel, '_permission_mode', 'auto')
+        
+        # Record the permission request
+        if not hasattr(self._kernel, '_permission_history'):
+            self._kernel._permission_history = []
+        
+        if mode == 'deny':
+            approved = False
+        elif mode == 'manual':
+            # TODO: Implement interactive prompting
+            # For now, fall back to auto-approve
+            approved = True
+        else:  # auto mode
+            approved = True
+        
+        self._kernel._permission_history.append({
+            'request': str(params),
+            'approved': approved
+        })
+        
+        return {"approved": approved}
     
     async def writeTextFile(self, params):
         """Handle file write requests"""
@@ -151,6 +171,42 @@ class ACPKernel(MetaKernel):
         # Agent configuration - can be overridden via environment variables
         self._agent_command = os.environ.get('ACP_AGENT_COMMAND', 'codex-acp')
         self._agent_args = os.environ.get('ACP_AGENT_ARGS', '').split() if os.environ.get('ACP_AGENT_ARGS') else []
+        
+        # Session configuration
+        self._session_cwd = os.getcwd()
+        self._mcp_servers = []
+        
+        # Permission configuration
+        self._permission_mode = 'auto'
+        self._permission_history = []
+        
+        # Load custom magics
+        self._load_magics()
+    
+    def _load_magics(self):
+        """Load custom magic commands"""
+        import importlib
+        import os
+        
+        # Get path to magics directory
+        magics_dir = os.path.join(os.path.dirname(__file__), 'magics')
+        
+        # Load each magic module
+        magic_modules = [
+            'mcp_magic',
+            'permissions_magic', 
+            'session_magic',
+            'agent_config_magic'
+        ]
+        
+        for module_name in magic_modules:
+            try:
+                module = importlib.import_module(f'agentclientkernel.magics.{module_name}')
+                if hasattr(module, 'register_magics'):
+                    module.register_magics(self)
+                    self._log.info(f"Loaded magic: {module_name}")
+            except Exception as e:
+                self._log.error(f"Failed to load magic {module_name}: {e}")
     
     def get_usage(self):
         """Return usage information"""
@@ -161,10 +217,18 @@ Simply type your prompts and execute cells to communicate with the agent.
 
 Current agent: {self._agent_command} {' '.join(self._agent_args)}
 
-Configuration:
-- Set ACP_AGENT_COMMAND environment variable to change the agent command
-- Set ACP_AGENT_ARGS environment variable to pass additional arguments
-- Example: ACP_AGENT_COMMAND=codex-acp ACP_AGENT_ARGS="--verbose"
+Configuration Magic Commands:
+- %agent_config [COMMAND [ARGS...]] - configure agent command
+- %agent_env [KEY=VALUE] - set agent environment variables
+- %mcp_add NAME COMMAND [ARGS...] - add MCP server
+- %mcp_list - list MCP servers
+- %mcp_remove NAME - remove MCP server
+- %permissions [MODE] - configure permissions (auto/manual/deny)
+- %new_session [CWD] - create new session
+- %session_info - show session information
+- %session_restart - restart current session
+
+For help on any magic, use: %magic_name?
 
 Supported agents:
 - codex-acp (OpenAI Codex, requires OPENAI_API_KEY or CODEX_API_KEY)
@@ -212,9 +276,20 @@ Supported agents:
             InitializeRequest(protocolVersion=PROTOCOL_VERSION, clientCapabilities=None)
         )
         
-        # Create a new session
+        # Create a new session with MCP servers
+        from acp.schema import StdioMcpServer
+        
+        mcp_servers = []
+        for server_config in self._mcp_servers:
+            mcp_servers.append(StdioMcpServer(
+                name=server_config['name'],
+                command=server_config['command'],
+                args=server_config['args'],
+                env=server_config.get('env', [])
+            ))
+        
         session = await self._conn.newSession(
-            NewSessionRequest(mcpServers=[], cwd=os.getcwd())
+            NewSessionRequest(mcpServers=mcp_servers, cwd=self._session_cwd)
         )
         self._session_id = session.sessionId
         

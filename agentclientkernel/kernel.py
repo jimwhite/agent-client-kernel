@@ -257,205 +257,21 @@ Supported agents:
         
         expr = info.get('obj', info.get('code', '')).strip()
         
-        # Check for kernel-specific help topics
-        help_topics = {
-            'agent': self._get_agent_help(),
-            '%agent': self._get_agent_help(),
-            'session': self._get_session_help(),
-            'mcp': self._get_mcp_help(),
-            'permissions': self._get_permissions_help(),
-            'config': self._get_config_help(),
-        }
+        # For 'agent' or '%agent', return the same help as %agent?
+        if expr.lower() in ['agent', '%agent']:
+            # Get the agent magic's docstring (same as %agent?)
+            try:
+                from agentclientkernel.magics.agent_magic import AgentMagic
+                agent_magic = AgentMagic(self)
+                return agent_magic.line_agent.__doc__ or "No help available for %agent"
+            except:
+                return "No help available for %agent"
         
-        # Check if the expression matches a help topic
-        for topic, help_text in help_topics.items():
-            if expr.lower() == topic.lower() or expr.lower().startswith(topic.lower() + ' '):
-                return help_text
-        
-        # For anything else, provide general kernel help
+        # For anything else, return None or indicate no help available
         if none_on_fail:
             return None
         else:
-            return f"""No specific help available for '{expr}'.
-
-Agent Client Protocol Kernel Help
-==================================
-
-This kernel provides an interface to Agent Client Protocol (ACP) compatible agents.
-
-Available help topics:
-  - agent       : Help on %agent magic command
-  - session     : Help on session management
-  - mcp         : Help on MCP server configuration
-  - permissions : Help on permission management
-  - config      : Help on agent configuration
-
-Use '?TOPIC' or '%help TOPIC' to get help on a specific topic.
-
-For general usage: {self.get_usage()}
-"""
-    
-    def _get_agent_help(self):
-        """Return help text for the %agent magic command"""
-        return f"""Agent Magic Command
-
-The %agent magic provides unified configuration and management for the kernel.
-
-SUBCOMMANDS
-===========
-
-MCP Server Configuration:
-  %agent mcp add NAME COMMAND [ARGS...]
-      Add an MCP (Model Context Protocol) server to the session
-      Example: %agent mcp add filesystem /usr/local/bin/mcp-server-filesystem
-      
-  %agent mcp list
-      List all configured MCP servers
-      
-  %agent mcp remove NAME
-      Remove a specific MCP server
-      
-  %agent mcp clear
-      Remove all MCP servers
-
-Permission Configuration:
-  %agent permissions [auto|manual|deny]
-      Set how permission requests are handled
-      - auto: automatically approve all requests (default)
-      - manual: prompt for each request (not yet implemented)
-      - deny: automatically deny all requests
-      
-  %agent permissions list
-      Show history of permission requests
-
-Session Management:
-  %agent session new [CWD]
-      Create a new agent session with optional working directory
-      Example: %agent session new /path/to/project
-      
-  %agent session info
-      Display information about the current session
-      
-  %agent session restart
-      Restart the current session with same configuration
-
-Agent Configuration:
-  %agent config [COMMAND [ARGS...]]
-      Configure the agent command to use
-      Example: %agent config codex-acp --verbose
-      
-  %agent env [KEY=VALUE]
-      Set environment variables for the agent
-      Example: %agent env OPENAI_API_KEY=sk-...
-
-Current Configuration:
-  Agent: {self._agent_command} {' '.join(self._agent_args)}
-  Session ID: {self._session_id if self._session_id else 'No active session'}
-  Working Directory: {self._session_cwd}
-"""
-    
-    def _get_session_help(self):
-        """Return help text for session management"""
-        return f"""Session Management
-
-Sessions represent an active connection to an ACP agent.
-
-COMMANDS
-========
-  %agent session new [CWD]
-      Create a new session, optionally with a specific working directory
-      
-  %agent session info
-      Display information about the current session
-      
-  %agent session restart
-      Restart the current session
-
-CURRENT SESSION
-===============
-  Session ID: {self._session_id if self._session_id else 'No active session'}
-  Working Directory: {self._session_cwd}
-  Agent: {self._agent_command}
-"""
-    
-    def _get_mcp_help(self):
-        """Return help text for MCP server configuration"""
-        mcp_count = len(self._mcp_servers) if hasattr(self, '_mcp_servers') else 0
-        return f"""MCP Server Configuration
-
-MCP (Model Context Protocol) servers provide additional capabilities to the agent.
-
-COMMANDS
-========
-  %agent mcp add NAME COMMAND [ARGS...]
-      Add an MCP server
-      
-  %agent mcp list
-      List configured servers
-      
-  %agent mcp remove NAME
-      Remove a server
-      
-  %agent mcp clear
-      Remove all servers
-
-CURRENT CONFIGURATION
-=====================
-  Configured MCP servers: {mcp_count}
-"""
-    
-    def _get_permissions_help(self):
-        """Return help text for permission management"""
-        return f"""Permission Management
-
-Control how the kernel handles permission requests from the agent.
-
-MODES
-=====
-  auto   - Automatically approve all requests (default)
-  manual - Prompt for each request (not yet implemented)
-  deny   - Automatically deny all requests
-
-COMMANDS
-========
-  %agent permissions [MODE]
-      Set permission mode
-      
-  %agent permissions list
-      Show permission request history
-
-CURRENT CONFIGURATION
-=====================
-  Permission Mode: {self._permission_mode}
-"""
-    
-    def _get_config_help(self):
-        """Return help text for agent configuration"""
-        return f"""Agent Configuration
-
-Configure the ACP agent command and environment.
-
-COMMANDS
-========
-  %agent config [COMMAND [ARGS...]]
-      Set the agent command and arguments
-      Example: %agent config codex-acp --verbose
-      
-  %agent env [KEY=VALUE]
-      Set environment variables
-      Example: %agent env OPENAI_API_KEY=sk-...
-
-CURRENT CONFIGURATION
-=====================
-  Agent Command: {self._agent_command}
-  Agent Args: {' '.join(self._agent_args) if self._agent_args else '(none)'}
-
-ENVIRONMENT VARIABLES
-=====================
-  OPENAI_API_KEY: {'✓ set' if os.environ.get('OPENAI_API_KEY') else '✗ not set'}
-  CODEX_API_KEY: {'✓ set' if os.environ.get('CODEX_API_KEY') else '✗ not set'}
-  ACP_AGENT_COMMAND: {os.environ.get('ACP_AGENT_COMMAND', '(not set)')}
-"""
+            return None
     
     async def _start_agent(self):
         """Start the ACP agent process"""

@@ -9,6 +9,13 @@ import os
 import sys
 from pathlib import Path
 
+# Configure logging to output to stderr
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stderr
+)
+
 from metakernel import MetaKernel
 
 from acp import (

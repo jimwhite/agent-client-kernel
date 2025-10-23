@@ -235,6 +235,109 @@ Supported agents:
 - Any ACP-compatible agent
 """
     
+    def get_help(self):
+        """Return comprehensive help information about the kernel
+        
+        This method provides detailed help about using the Agent Client Protocol kernel,
+        including configuration, magic commands, and usage examples.
+        """
+        return f"""Agent Client Protocol Kernel - Help
+
+OVERVIEW
+========
+This Jupyter kernel enables interaction with Agent Client Protocol (ACP) compatible 
+agents directly from notebooks. It provides a conversational interface to AI coding 
+assistants that can help with writing, debugging, and understanding code.
+
+BASIC USAGE
+===========
+Type your prompts or questions in a cell and execute them. The agent will respond
+with code, explanations, or assistance.
+
+Example:
+  >>> Write a Python function to calculate fibonacci numbers
+  >>> Explain how asyncio works in Python
+  >>> Debug this code: [paste your code]
+
+CURRENT CONFIGURATION
+=====================
+Agent Command: {self._agent_command} {' '.join(self._agent_args)}
+Session ID: {self._session_id if self._session_id else 'No active session'}
+Working Directory: {self._session_cwd}
+Permission Mode: {self._permission_mode}
+
+MAGIC COMMANDS
+==============
+The kernel provides a unified %agent magic command for configuration:
+
+MCP Server Configuration:
+  %agent mcp add NAME COMMAND [ARGS...]
+      Add an MCP (Model Context Protocol) server to the session
+      Example: %agent mcp add filesystem /usr/local/bin/mcp-server-filesystem
+
+  %agent mcp list
+      List all configured MCP servers
+
+  %agent mcp remove NAME
+      Remove a specific MCP server
+
+  %agent mcp clear
+      Remove all MCP servers
+
+Permission Configuration:
+  %agent permissions [auto|manual|deny]
+      Set how permission requests are handled
+      - auto: automatically approve all requests (default)
+      - manual: prompt for each request (not yet implemented)
+      - deny: automatically deny all requests
+
+  %agent permissions list
+      Show history of permission requests
+
+Session Management:
+  %agent session new [CWD]
+      Create a new agent session, optionally with a specific working directory
+      Example: %agent session new /path/to/project
+
+  %agent session info
+      Display information about the current session
+
+  %agent session restart
+      Restart the current session with the same configuration
+
+Agent Configuration:
+  %agent config [COMMAND [ARGS...]]
+      Configure the agent command to use
+      Example: %agent config codex-acp --verbose
+
+  %agent env [KEY=VALUE]
+      Set environment variables for the agent
+      Example: %agent env OPENAI_API_KEY=sk-...
+
+SUPPORTED AGENTS
+================
+- codex-acp: OpenAI Codex (requires OPENAI_API_KEY or CODEX_API_KEY)
+- Any ACP-compatible agent
+
+ENVIRONMENT VARIABLES
+=====================
+- ACP_AGENT_COMMAND: Override default agent command
+- ACP_AGENT_ARGS: Additional arguments for the agent
+- OPENAI_API_KEY: API key for OpenAI Codex
+- CODEX_API_KEY: Alternative API key variable
+
+GETTING MORE HELP
+=================
+- Use %agent without arguments to see available subcommands
+- Use %agent? for detailed magic command help
+- Visit: https://github.com/jimwhite/agent-client-kernel
+
+VERSION INFORMATION
+===================
+Kernel Version: {__version__}
+Protocol Version: {PROTOCOL_VERSION}
+"""
+    
     async def _start_agent(self):
         """Start the ACP agent process"""
         if self._proc is not None:

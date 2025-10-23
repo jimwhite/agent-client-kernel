@@ -235,6 +235,152 @@ Supported agents:
 - Any ACP-compatible agent
 """
     
+    def get_kernel_help_on(self, info, level=0, none_on_fail=False):
+        """Get help on an object.  Called by the help magic.
+        
+        This method provides context-sensitive help for expressions in the kernel.
+        It is called by the MetaKernel help system when users type expressions
+        followed by '?' or use the %help magic.
+        
+        Args:
+            info: Dictionary containing parsed code information with keys:
+                  'code' - the expression to get help on
+                  'obj' - the object name
+            level: 0 for brief help (docstring), 1 for detailed help
+            none_on_fail: If True, return None on failure; otherwise return error message
+        
+        Returns:
+            Help text for the expression, or None/error message if not found
+        """
+        if not info.get('code'):
+            return None if none_on_fail else ''
+        
+        expr = info.get('obj', info.get('code', '')).strip()
+        
+        # For 'agent' or '%agent', return the same help as %agent?
+        if expr.lower() in ['agent', '%agent']:
+            # Get the agent magic's docstring (same as %agent?)
+            try:
+                from agentclientkernel.magics.agent_magic import AgentMagic
+                agent_magic = AgentMagic(self)
+                return agent_magic.line_agent.__doc__ or "No help available for %agent"
+            except:
+                return "No help available for %agent"
+        
+        # Handle agent subcommands like 'agent mcp', 'agent session', etc.
+        expr_lower = expr.lower()
+        if expr_lower.startswith('agent ') or expr_lower.startswith('%agent '):
+            # Extract the subcommand
+            parts = expr.split(None, 1)
+            if len(parts) > 1:
+                subcommand = parts[1].lower()
+                return self._get_agent_subcommand_help(subcommand)
+        
+        # Handle standalone subcommands like 'mcp', 'session', etc.
+        # These are treated as agent subcommands
+        subcommand_help = self._get_agent_subcommand_help(expr_lower)
+        if subcommand_help:
+            return subcommand_help
+        
+        # For anything else, return None or indicate no help available
+        if none_on_fail:
+            return None
+        else:
+            return None
+    
+    def _get_agent_subcommand_help(self, subcommand):
+        """Get help text for agent subcommands.
+        
+        Args:
+            subcommand: The subcommand name (e.g., 'mcp', 'session', 'permissions', 'config', 'env')
+        
+        Returns:
+            Help text for the subcommand, or None if not recognized
+        """
+        subcommand = subcommand.lower().strip()
+        
+        if subcommand == 'mcp':
+            return """MCP Server Configuration
+
+MCP (Model Context Protocol) servers provide additional capabilities to the agent.
+
+Commands:
+  %agent mcp add NAME COMMAND [ARGS...]
+      Add an MCP server to the session
+      Example: %agent mcp add filesystem /usr/local/bin/mcp-server-filesystem
+      
+  %agent mcp list
+      List all configured MCP servers
+      
+  %agent mcp remove NAME
+      Remove a specific MCP server by name
+      
+  %agent mcp clear
+      Remove all configured MCP servers
+"""
+        
+        elif subcommand == 'session':
+            return """Session Management
+
+Sessions represent an active connection to an ACP agent.
+
+Commands:
+  %agent session new [CWD]
+      Create a new session, optionally with a specific working directory
+      Example: %agent session new /path/to/project
+      
+  %agent session info
+      Display information about the current session
+      
+  %agent session restart
+      Restart the current session with the same configuration
+"""
+        
+        elif subcommand == 'permissions':
+            return """Permission Configuration
+
+Control how the kernel handles permission requests from the agent.
+
+Commands:
+  %agent permissions [auto|manual|deny]
+      Set the permission mode:
+      - auto: automatically approve all requests (default)
+      - manual: prompt for each request (not yet implemented)
+      - deny: automatically deny all requests
+      
+  %agent permissions list
+      Show the history of permission requests
+"""
+        
+        elif subcommand == 'config':
+            return """Agent Configuration
+
+Configure the ACP agent command and arguments.
+
+Commands:
+  %agent config [COMMAND [ARGS...]]
+      Set the agent command to use
+      Example: %agent config codex-acp --verbose
+      
+      Without arguments, displays the current configuration
+"""
+        
+        elif subcommand == 'env':
+            return """Environment Variables
+
+Set environment variables for the agent.
+
+Commands:
+  %agent env [KEY=VALUE]
+      Set an environment variable
+      Example: %agent env OPENAI_API_KEY=sk-...
+      
+      Without arguments, displays relevant environment variables
+"""
+        
+        else:
+            return None
+    
     async def _start_agent(self):
         """Start the ACP agent process"""
         if self._proc is not None:

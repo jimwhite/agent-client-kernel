@@ -81,7 +81,35 @@ The agent will respond with code, explanations, and can help with:
 - Documentation
 - And more!
 
-See the example notebook in `examples/basic_usage.ipynb` for a demonstration.
+### Magic Commands
+
+The kernel provides a unified `%agent` magic command for all configuration and session management:
+
+**MCP Server Configuration:**
+- `%agent mcp add NAME COMMAND [ARGS...]` - Add an MCP server
+- `%agent mcp list` - List configured MCP servers
+- `%agent mcp remove NAME` - Remove an MCP server
+- `%agent mcp clear` - Remove all MCP servers
+
+**Permission Configuration:**
+- `%agent permissions [auto|manual|deny]` - Set permission mode
+- `%agent permissions list` - View permission request history
+
+**Session Management:**
+- `%agent session new [CWD]` - Create a new session
+- `%agent session info` - Show current session information
+- `%agent session restart` - Restart the current session
+
+**Agent Configuration:**
+- `%agent config [COMMAND [ARGS...]]` - Configure the agent command
+- `%agent env [KEY=VALUE]` - Set agent environment variables
+
+Use `%agent` without arguments to see all available subcommands.
+Use `%agent?` for detailed help on the magic command.
+
+See the example notebooks in `examples/` for demonstrations:
+- `basic_usage.ipynb` - Basic agent interaction
+- `configuration_demo.ipynb` - Configuration and session management
 
 ## Requirements
 

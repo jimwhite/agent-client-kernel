@@ -23,6 +23,13 @@ from acp import (
     PROTOCOL_VERSION,
 )
 
+# Import nest_asyncio to allow nested event loops
+try:
+    import nest_asyncio
+    nest_asyncio.apply()
+except ImportError:
+    pass
+
 from . import __version__, KERNEL_NAME, DISPLAY_NAME
 
 

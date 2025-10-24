@@ -618,58 +618,64 @@ Commands:
         
         self._log.info("Starting agent: %s %s", self._agent_command, ' '.join(self._agent_args))
         
-        # Find the agent executable
-        program_path = Path(self._agent_command)
-        spawn_program = self._agent_command
-        spawn_args = self._agent_args
-        
-        if program_path.exists() and not os.access(program_path, os.X_OK):
-            spawn_program = sys.executable
-            spawn_args = [str(program_path), *self._agent_args]
-        
-        # Start the agent process
-        self._proc = await asyncio.create_subprocess_exec(
-            spawn_program,
-            *spawn_args,
-            stdin=aio_subprocess.PIPE,
-            stdout=aio_subprocess.PIPE,
-            stderr=aio_subprocess.PIPE,
-        )
-        
-        if self._proc.stdin is None or self._proc.stdout is None:
-            raise RuntimeError("Agent process does not expose stdio pipes")
-        
-        # Create client connection
-        client_impl = ACPClient(self)
-        self._conn = ClientSideConnection(
-            lambda _agent: client_impl,
-            self._proc.stdin,
-            self._proc.stdout
-        )
-        
-        # Initialize the agent
-        await self._conn.initialize(
-            InitializeRequest(protocolVersion=PROTOCOL_VERSION, clientCapabilities=None)
-        )
-        
-        # Create a new session with MCP servers
-        from acp.schema import StdioMcpServer
-        
-        mcp_servers = []
-        for server_config in self._mcp_servers:
-            mcp_servers.append(StdioMcpServer(
-                name=server_config['name'],
-                command=server_config['command'],
-                args=server_config['args'],
-                env=server_config.get('env', [])
-            ))
-        
-        session = await self._conn.newSession(
-            NewSessionRequest(mcpServers=mcp_servers, cwd=self._session_cwd)
-        )
-        self._session_id = session.sessionId
-        
-        self._log.info("Agent started with session ID: %s", self._session_id)
+        try:
+            # Find the agent executable
+            program_path = Path(self._agent_command)
+            spawn_program = self._agent_command
+            spawn_args = self._agent_args
+            
+            if program_path.exists() and not os.access(program_path, os.X_OK):
+                spawn_program = sys.executable
+                spawn_args = [str(program_path), *self._agent_args]
+            
+            # Start the agent process
+            self._proc = await asyncio.create_subprocess_exec(
+                spawn_program,
+                *spawn_args,
+                stdin=aio_subprocess.PIPE,
+                stdout=aio_subprocess.PIPE,
+                stderr=aio_subprocess.PIPE,
+            )
+            
+            if self._proc.stdin is None or self._proc.stdout is None:
+                raise RuntimeError("Agent process does not expose stdio pipes")
+            
+            # Create client connection
+            client_impl = ACPClient(self)
+            self._conn = ClientSideConnection(
+                lambda _agent: client_impl,
+                self._proc.stdin,
+                self._proc.stdout
+            )
+            
+            # Initialize the agent
+            await self._conn.initialize(
+                InitializeRequest(protocolVersion=PROTOCOL_VERSION, clientCapabilities=None)
+            )
+            
+            # Create a new session with MCP servers
+            from acp.schema import StdioMcpServer
+            
+            mcp_servers = []
+            for server_config in self._mcp_servers:
+                mcp_servers.append(StdioMcpServer(
+                    name=server_config['name'],
+                    command=server_config['command'],
+                    args=server_config['args'],
+                    env=server_config.get('env', [])
+                ))
+            
+            session = await self._conn.newSession(
+                NewSessionRequest(mcpServers=mcp_servers, cwd=self._session_cwd)
+            )
+            self._session_id = session.sessionId
+            
+            self._log.info("Agent started with session ID: %s", self._session_id)
+        except Exception as e:
+            # Clean up on failure to prevent inconsistent state
+            self._log.error("Failed to start agent: %s", e)
+            await self._stop_agent()
+            raise
     
     async def _stop_agent(self):
         """Stop the ACP agent process"""

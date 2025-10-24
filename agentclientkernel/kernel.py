@@ -46,6 +46,7 @@ class ACPClient(Client):
     def __init__(self, kernel) -> None:
         self._kernel = kernel
         self._log = logging.getLogger(__name__)
+        self._terminals = {}  # Track active terminals by ID
     
     async def requestPermission(self, params):
         """Handle permission requests from the agent"""
@@ -76,31 +77,260 @@ class ACPClient(Client):
     
     async def writeTextFile(self, params):
         """Handle file write requests"""
-        raise RequestError.method_not_found("fs/write_text_file")
+        from acp.schema import WriteTextFileResponse
+        
+        self._log.info("Writing file: %s", params.path)
+        
+        try:
+            # Resolve the path relative to session CWD
+            file_path = Path(params.path)
+            if not file_path.is_absolute():
+                file_path = Path(self._kernel._session_cwd) / file_path
+            
+            # Create parent directories if they don't exist
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Write the content to the file
+            file_path.write_text(params.content, encoding='utf-8')
+            
+            self._log.info("Successfully wrote file: %s", file_path)
+            return WriteTextFileResponse()
+        except Exception as e:
+            self._log.error("Error writing file %s: %s", params.path, e)
+            raise RequestError.internal_error(f"Failed to write file: {str(e)}")
     
     async def readTextFile(self, params):
         """Handle file read requests"""
-        raise RequestError.method_not_found("fs/read_text_file")
+        from acp.schema import ReadTextFileResponse
+        
+        self._log.info("Reading file: %s", params.path)
+        
+        try:
+            # Resolve the path relative to session CWD
+            file_path = Path(params.path)
+            if not file_path.is_absolute():
+                file_path = Path(self._kernel._session_cwd) / file_path
+            
+            # Check if file exists
+            if not file_path.exists():
+                raise RequestError.invalid_params(f"File not found: {params.path}")
+            
+            # Read the file content
+            content = file_path.read_text(encoding='utf-8')
+            
+            # Handle line parameter (read from specific line)
+            if params.line is not None:
+                lines = content.splitlines(keepends=True)
+                if params.line > 0 and params.line <= len(lines):
+                    # Get lines starting from the specified line
+                    content = ''.join(lines[params.line - 1:])
+            
+            # Handle limit parameter (limit number of characters)
+            if params.limit is not None and params.limit > 0:
+                content = content[:params.limit]
+            
+            self._log.info("Successfully read file: %s (%d chars)", file_path, len(content))
+            return ReadTextFileResponse(content=content)
+        except RequestError:
+            raise
+        except Exception as e:
+            self._log.error("Error reading file %s: %s", params.path, e)
+            raise RequestError.internal_error(f"Failed to read file: {str(e)}")
     
     async def createTerminal(self, params):
         """Handle terminal creation requests"""
-        raise RequestError.method_not_found("terminal/create")
+        from acp.schema import CreateTerminalResponse
+        import uuid
+        
+        self._log.info("Creating terminal: %s %s", params.command, params.args or [])
+        
+        try:
+            # Generate a unique terminal ID
+            terminal_id = str(uuid.uuid4())
+            
+            # Determine working directory
+            cwd = params.cwd
+            if cwd is None:
+                cwd = self._kernel._session_cwd
+            elif not Path(cwd).is_absolute():
+                cwd = str(Path(self._kernel._session_cwd) / cwd)
+            
+            # Prepare environment variables
+            env = os.environ.copy()
+            if params.env:
+                for env_var in params.env:
+                    env[env_var.name] = env_var.value
+            
+            # Create the terminal process
+            process = await asyncio.create_subprocess_exec(
+                params.command,
+                *(params.args or []),
+                stdin=aio_subprocess.PIPE,
+                stdout=aio_subprocess.PIPE,
+                stderr=aio_subprocess.STDOUT,  # Merge stderr into stdout
+                cwd=cwd,
+                env=env,
+            )
+            
+            # Store terminal state
+            self._terminals[terminal_id] = {
+                'process': process,
+                'output_buffer': [],
+                'output_byte_limit': params.outputByteLimit or 1024 * 1024,  # Default 1MB
+                'total_bytes': 0,
+            }
+            
+            # Start reading output in the background
+            asyncio.create_task(self._read_terminal_output(terminal_id))
+            
+            self._log.info("Created terminal %s with PID %s", terminal_id, process.pid)
+            return CreateTerminalResponse(terminalId=terminal_id)
+        except Exception as e:
+            self._log.error("Error creating terminal: %s", e)
+            raise RequestError.internal_error(f"Failed to create terminal: {str(e)}")
+    
+    async def _read_terminal_output(self, terminal_id):
+        """Background task to read terminal output"""
+        terminal = self._terminals.get(terminal_id)
+        if not terminal:
+            return
+        
+        process = terminal['process']
+        try:
+            while True:
+                # Read available output
+                chunk = await process.stdout.read(4096)
+                if not chunk:
+                    # Process has ended
+                    break
+                
+                # Check byte limit
+                if terminal['total_bytes'] + len(chunk) > terminal['output_byte_limit']:
+                    # Truncate to limit
+                    remaining = terminal['output_byte_limit'] - terminal['total_bytes']
+                    if remaining > 0:
+                        chunk = chunk[:remaining]
+                        terminal['output_buffer'].append(chunk)
+                        terminal['total_bytes'] += len(chunk)
+                    break
+                
+                terminal['output_buffer'].append(chunk)
+                terminal['total_bytes'] += len(chunk)
+        except Exception as e:
+            self._log.error("Error reading terminal output for %s: %s", terminal_id, e)
     
     async def terminalOutput(self, params):
-        """Handle terminal output"""
-        raise RequestError.method_not_found("terminal/output")
+        """Handle terminal output requests"""
+        from acp.schema import TerminalOutputResponse, TerminalExitStatus
+        
+        terminal_id = params.terminalId
+        self._log.info("Getting output for terminal: %s", terminal_id)
+        
+        terminal = self._terminals.get(terminal_id)
+        if not terminal:
+            raise RequestError.invalid_params(f"Terminal not found: {terminal_id}")
+        
+        process = terminal['process']
+        
+        # Get all buffered output
+        output_bytes = b''.join(terminal['output_buffer'])
+        output = output_bytes.decode('utf-8', errors='replace')
+        
+        # Clear the buffer after reading
+        terminal['output_buffer'] = []
+        
+        # Check if process has exited
+        exit_status = None
+        truncated = terminal['total_bytes'] >= terminal['output_byte_limit']
+        
+        if process.returncode is not None:
+            exit_status = TerminalExitStatus(
+                exitCode=process.returncode,
+                signal=None  # Unix signals not easily accessible in asyncio
+            )
+        
+        return TerminalOutputResponse(
+            output=output,
+            truncated=truncated,
+            exitStatus=exit_status
+        )
     
     async def releaseTerminal(self, params):
-        """Handle terminal release"""
-        raise RequestError.method_not_found("terminal/release")
+        """Handle terminal release requests"""
+        from acp.schema import ReleaseTerminalResponse
+        
+        terminal_id = params.terminalId
+        self._log.info("Releasing terminal: %s", terminal_id)
+        
+        terminal = self._terminals.get(terminal_id)
+        if terminal:
+            process = terminal['process']
+            
+            # Close stdin if still open
+            if process.stdin and not process.stdin.is_closing():
+                process.stdin.close()
+            
+            # Remove from tracking
+            del self._terminals[terminal_id]
+            
+            self._log.info("Released terminal %s", terminal_id)
+        
+        return ReleaseTerminalResponse()
     
     async def waitForTerminalExit(self, params):
-        """Handle terminal exit wait"""
-        raise RequestError.method_not_found("terminal/wait_for_exit")
+        """Handle terminal exit wait requests"""
+        from acp.schema import WaitForTerminalExitResponse
+        
+        terminal_id = params.terminalId
+        self._log.info("Waiting for terminal exit: %s", terminal_id)
+        
+        terminal = self._terminals.get(terminal_id)
+        if not terminal:
+            raise RequestError.invalid_params(f"Terminal not found: {terminal_id}")
+        
+        process = terminal['process']
+        
+        # Wait for the process to complete
+        await process.wait()
+        
+        self._log.info("Terminal %s exited with code %s", terminal_id, process.returncode)
+        
+        return WaitForTerminalExitResponse(
+            exitCode=process.returncode,
+            signal=None  # Unix signals not easily accessible in asyncio
+        )
     
     async def killTerminal(self, params):
-        """Handle terminal kill"""
-        raise RequestError.method_not_found("terminal/kill")
+        """Handle terminal kill requests"""
+        from acp.schema import KillTerminalCommandResponse
+        
+        terminal_id = params.terminalId
+        self._log.info("Killing terminal: %s", terminal_id)
+        
+        terminal = self._terminals.get(terminal_id)
+        if not terminal:
+            raise RequestError.invalid_params(f"Terminal not found: {terminal_id}")
+        
+        process = terminal['process']
+        
+        try:
+            # Try graceful termination first
+            process.terminate()
+            
+            # Wait a bit for graceful shutdown
+            try:
+                await asyncio.wait_for(process.wait(), timeout=2.0)
+            except asyncio.TimeoutError:
+                # Force kill if termination didn't work
+                process.kill()
+                await process.wait()
+            
+            self._log.info("Killed terminal %s", terminal_id)
+        except Exception as e:
+            self._log.error("Error killing terminal %s: %s", terminal_id, e)
+            raise RequestError.internal_error(f"Failed to kill terminal: {str(e)}")
+        
+        return KillTerminalCommandResponse()
     
     async def sessionUpdate(self, params: SessionNotification) -> None:
         """Handle session updates from the agent"""
@@ -388,58 +618,64 @@ Commands:
         
         self._log.info("Starting agent: %s %s", self._agent_command, ' '.join(self._agent_args))
         
-        # Find the agent executable
-        program_path = Path(self._agent_command)
-        spawn_program = self._agent_command
-        spawn_args = self._agent_args
-        
-        if program_path.exists() and not os.access(program_path, os.X_OK):
-            spawn_program = sys.executable
-            spawn_args = [str(program_path), *self._agent_args]
-        
-        # Start the agent process
-        self._proc = await asyncio.create_subprocess_exec(
-            spawn_program,
-            *spawn_args,
-            stdin=aio_subprocess.PIPE,
-            stdout=aio_subprocess.PIPE,
-            stderr=aio_subprocess.PIPE,
-        )
-        
-        if self._proc.stdin is None or self._proc.stdout is None:
-            raise RuntimeError("Agent process does not expose stdio pipes")
-        
-        # Create client connection
-        client_impl = ACPClient(self)
-        self._conn = ClientSideConnection(
-            lambda _agent: client_impl,
-            self._proc.stdin,
-            self._proc.stdout
-        )
-        
-        # Initialize the agent
-        await self._conn.initialize(
-            InitializeRequest(protocolVersion=PROTOCOL_VERSION, clientCapabilities=None)
-        )
-        
-        # Create a new session with MCP servers
-        from acp.schema import StdioMcpServer
-        
-        mcp_servers = []
-        for server_config in self._mcp_servers:
-            mcp_servers.append(StdioMcpServer(
-                name=server_config['name'],
-                command=server_config['command'],
-                args=server_config['args'],
-                env=server_config.get('env', [])
-            ))
-        
-        session = await self._conn.newSession(
-            NewSessionRequest(mcpServers=mcp_servers, cwd=self._session_cwd)
-        )
-        self._session_id = session.sessionId
-        
-        self._log.info("Agent started with session ID: %s", self._session_id)
+        try:
+            # Find the agent executable
+            program_path = Path(self._agent_command)
+            spawn_program = self._agent_command
+            spawn_args = self._agent_args
+            
+            if program_path.exists() and not os.access(program_path, os.X_OK):
+                spawn_program = sys.executable
+                spawn_args = [str(program_path), *self._agent_args]
+            
+            # Start the agent process
+            self._proc = await asyncio.create_subprocess_exec(
+                spawn_program,
+                *spawn_args,
+                stdin=aio_subprocess.PIPE,
+                stdout=aio_subprocess.PIPE,
+                stderr=aio_subprocess.PIPE,
+            )
+            
+            if self._proc.stdin is None or self._proc.stdout is None:
+                raise RuntimeError("Agent process does not expose stdio pipes")
+            
+            # Create client connection
+            client_impl = ACPClient(self)
+            self._conn = ClientSideConnection(
+                lambda _agent: client_impl,
+                self._proc.stdin,
+                self._proc.stdout
+            )
+            
+            # Initialize the agent
+            await self._conn.initialize(
+                InitializeRequest(protocolVersion=PROTOCOL_VERSION, clientCapabilities=None)
+            )
+            
+            # Create a new session with MCP servers
+            from acp.schema import StdioMcpServer
+            
+            mcp_servers = []
+            for server_config in self._mcp_servers:
+                mcp_servers.append(StdioMcpServer(
+                    name=server_config['name'],
+                    command=server_config['command'],
+                    args=server_config['args'],
+                    env=server_config.get('env', [])
+                ))
+            
+            session = await self._conn.newSession(
+                NewSessionRequest(mcpServers=mcp_servers, cwd=self._session_cwd)
+            )
+            self._session_id = session.sessionId
+            
+            self._log.info("Agent started with session ID: %s", self._session_id)
+        except Exception as e:
+            # Clean up on failure to prevent inconsistent state
+            self._log.error("Failed to start agent: %s", e)
+            await self._stop_agent()
+            raise
     
     async def _stop_agent(self):
         """Stop the ACP agent process"""

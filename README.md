@@ -146,4 +146,4 @@ pip uninstall agentclientkernel
 
 ## License
 
-MIT
+BSD 3-Clause License

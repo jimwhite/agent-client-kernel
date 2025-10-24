@@ -50,7 +50,24 @@ The kernel connects to external ACP agents. By default, it uses `codex-acp`.
    export OPENAI_API_KEY=sk-...
    ```
 
+3. Authorize Codex
+   ```bash
+   codex
+   ```
+   It will prompt you through authentication and permission to run stuff.
+
+   This is the error you get when trying to chat with the agent then you probably missed this step.
+   ```
+Error: Authentication required
+
+Make sure the ACP agent is configured correctly.
+Current agent: codex-acp
+```
+
 3. Start Jupyter and use the "Agent Client Protocol" kernel
+   ```bash
+   start-noteboook.py
+   ```
 
 ### Using Other Agents
 

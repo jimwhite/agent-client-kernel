@@ -21,10 +21,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "ipykernel<7.0",
-    "jupyter-client<7.0",
+    "ipykernel>=7.0",
+    "jupyter-client>=8.5",
     "agent-client-protocol>=0.4.0",
-    "metakernel @ git+https://github.com/jimwhite/metakernel.git",
+    "metakernel @ file:./metakernel",
     "nest-asyncio>=1.6.0",
 ]
 

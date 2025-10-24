@@ -29,6 +29,11 @@ from acp import (
     text_block,
     PROTOCOL_VERSION,
 )
+from acp.schema import (
+    RequestPermissionResponse,
+    AllowedOutcome,
+    DeniedOutcome,
+)
 
 # Import nest_asyncio to allow nested event loops
 try:
@@ -61,19 +66,38 @@ class ACPClient(Client):
         
         if mode == 'deny':
             approved = False
+            outcome = DeniedOutcome(outcome='cancelled')
         elif mode == 'manual':
             # TODO: Implement interactive prompting
             # For now, fall back to auto-approve
             approved = True
+            # Select the first 'allow' option if available
+            option_id = self._get_allow_option_id(params.options)
+            outcome = AllowedOutcome(outcome='selected', optionId=option_id)
         else:  # auto mode
             approved = True
+            # Select the first 'allow' option if available
+            option_id = self._get_allow_option_id(params.options)
+            outcome = AllowedOutcome(outcome='selected', optionId=option_id)
         
         self._kernel._permission_history.append({
             'request': str(params),
             'approved': approved
         })
         
-        return {"approved": approved}
+        return RequestPermissionResponse(outcome=outcome)
+    
+    def _get_allow_option_id(self, options):
+        """Get the first allow option ID from the permission options"""
+        # Look for allow_once or allow_always options
+        for option in options:
+            if option.kind in ('allow_once', 'allow_always'):
+                return option.optionId
+        # Fallback to the first option if no allow option is found
+        if options:
+            return options[0].optionId
+        # Ultimate fallback
+        return 'approved'
     
     async def writeTextFile(self, params):
         """Handle file write requests"""

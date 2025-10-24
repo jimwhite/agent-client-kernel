@@ -1,5 +1,5 @@
 # Copyright (c) Jim White.
-# Distributed under the terms of the MIT License.
+# Distributed under the terms of the BSD 3-Clause License.
 
 from metakernel import Magic
 import os

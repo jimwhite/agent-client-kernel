@@ -1,19 +1,21 @@
 {
-    "name": "ACL2-Jupyter",
+    "name": "JupyterLab withAgent Client Kernel",
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "../Dockerfile"
     },
+    // "remoteUser": "root",
     "forwardPorts": [
-        8899
+        8888
     ],
     "portsAttributes": {
-        "8899": {
+        "8888": {
             "label": "Jupyter",
             "requireLocalPort": true
         }
     },
     "containerEnv": {
-        "JUPYTER_PORT": "8899",
+        "JUPYTER_PORT": "8888",
+        "GRANT_SUDO": "yes"
         // "RESTARTABLE": "yes"
     }
 }

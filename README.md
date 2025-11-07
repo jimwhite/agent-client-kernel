@@ -21,7 +21,10 @@ The kernel spawns and communicates with external ACP agents (such as codex-acp) 
 
 ## Installation
 
-Install the package and kernel:
+Just use the Dockerfile by opening the devcontainer in GitHub Codespaces or locally.  
+After JupyterLab starts, open a Terminal and run `codex`.  Follow prompts for API key and authorization then `/quit`.
+
+Alternatively, install the package, agent, and kernel:
 
 ```bash
 pip install --upgrade uv jupyter-mcp-tools
@@ -36,7 +39,7 @@ The kernel spawns a subprocess to run the agent which needs installation and ACP
 
 ### Using Codex (Default)
 
-1. Install codex-acp:  Already inccluded in Dockdrfile.
+1. Install codex-acp:
    ```bash
    npm install -g @openai/codex@latest @zed-industries/codex-acp@latest
    ```

@@ -1,6 +1,6 @@
 # agent-client-kernel
 
-A Jupyter Kernel for the Agent Client Protocol (ACP)
+A Jupyter Kernel for Zed's Agent Client Protocol (ACP) https://agentclientprotocol.com/ .
 
 This kernel allows you to interact with external ACP agents directly from Jupyter notebooks. It acts as an ACP client that connects to coding agents like [Codex](https://github.com/zed-industries/codex-acp), providing a seamless notebook interface for AI-powered coding assistance.
 
@@ -21,31 +21,27 @@ The kernel spawns and communicates with external ACP agents (such as codex-acp) 
 
 ## Installation
 
-Install the package:
+Install the package and kernel:
 
 ```bash
+pip install --upgrade uv jupyter-mcp-tools
+git submodule update --init --recursive
 pip install -e .
-```
-
-Install the kernel:
-
-```bash
 python -m agentclientkernel install --user
 ```
 
 ## Configuration
 
-The kernel connects to external ACP agents. By default, it uses `codex-acp`.
+The kernel spawns a subprocess to run the agent which needs installation and ACP adapter.
 
 ### Using Codex (Default)
 
-1. Install codex-acp:
+1. Install codex-acp:  Already inccluded in Dockdrfile.
    ```bash
-   npm install -g @zed-industries/codex-acp
-   # or download from https://github.com/zed-industries/codex-acp/releases
+   npm install -g @openai/codex@latest @zed-industries/codex-acp@latest
    ```
 
-2. Set your OpenAI API key:
+2. Set your OpenAI API key:  This can be onitted and `codex` will prompt for this.
    ```bash
    export OPENAI_API_KEY=sk-...
    ```
@@ -54,17 +50,20 @@ The kernel connects to external ACP agents. By default, it uses `codex-acp`.
    ```bash
    codex
    ```
+
    It will prompt you through authentication and permission to run stuff.
+
+   I think only API auth works in Codespaces because OAuth tries to redirect thru localhost.
 
    This is the error you get when trying to chat with the agent then you probably missed this step.
    ```
-Error: Authentication required
+   Error: Authentication required
 
-Make sure the ACP agent is configured correctly.
-Current agent: codex-acp
-```
+   Make sure the ACP agent is configured correctly.
+   Current agent: codex-acp
+   ```
 
-3. Start Jupyter and use the "Agent Client Protocol" kernel
+4. Start Jupyter and use the "Agent Client Protocol" kernel
    ```bash
    start-noteboook.py
    ```

@@ -100,6 +100,16 @@ The agent will respond with code, explanations, and can help with:
 - Documentation
 - And more!
 
+## Add a Jupyter MCP Service 
+
+Adding a Jupyter MCP service for accessing and editing notebooks and cells.
+The Dockerfile installed the datalayer/jupyter-mcp-server https://github.com/datalayer/jupyter-mcp-server .
+To add it to the agent's MCP configuration: 
+   ```
+   %agent mcp add jupyter uvx jupyter-mcp-server@latest
+   ```
+See examples/jupyter-mcp.ipynb.
+
 ### Magic Commands
 
 The kernel provides a unified `%agent` magic command for all configuration and session management:

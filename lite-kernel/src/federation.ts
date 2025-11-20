@@ -1,6 +1,9 @@
 // lite-kernel/src/federation.ts
 // Module Federation container for JupyterLite
 
+import { streamText } from "ai";
+import { webLLM } from "@built-in-ai/web-llm";
+
 declare const window: any;
 
 console.log("[lite-kernel/federation] Setting up Module Federation container");
@@ -82,37 +85,29 @@ const container = {
 
         console.log("[lite-kernel/federation] Got BaseKernel from shared scope:", BaseKernel);
 
-        // Define ChatHttpKernel inline
+        // Define WebLLM-backed Chat kernel inline (browser-only, no HTTP)
         class ChatHttpKernel {
-          endpoint: string;
+          private modelName: string;
 
           constructor(opts: any = {}) {
-            this.endpoint = opts.endpoint ?? "http://localhost:8000/chat";
-            console.log("[ChatHttpKernel] Using endpoint:", this.endpoint);
+            this.modelName = opts.model ?? "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+            console.log("[ChatHttpKernel] Using WebLLM model:", this.modelName);
           }
 
           async send(prompt: string): Promise<string> {
-            console.log("[ChatHttpKernel] Sending prompt:", prompt);
-            const resp = await fetch(this.endpoint, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ prompt })
+            console.log("[ChatHttpKernel] Sending prompt to WebLLM:", prompt);
+
+            const result = await streamText({
+              model: webLLM(this.modelName),
+              messages: [{ role: "user", content: prompt }],
             });
 
-            if (!resp.ok) {
-              const text = await resp.text().catch(() => "");
-              console.error("[ChatHttpKernel] HTTP error", resp.status, text);
-              throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
+            let reply = "";
+            for await (const chunk of result.textStream) {
+              reply += chunk;
             }
 
-            const data = await resp.json();
-            if (data.error) {
-              console.error("[ChatHttpKernel] LLM error:", data.error, data.detail);
-              throw new Error(`LLM error: ${data.error} – ${data.detail ?? ""}`);
-            }
-
-            const reply = data.reply ?? "";
-            console.log("[ChatHttpKernel] Got reply:", reply);
+            console.log("[ChatHttpKernel] Got reply from WebLLM:", reply);
             return reply;
           }
         }
@@ -123,8 +118,8 @@ const container = {
 
           constructor(options: any) {
             super(options);
-            const endpoint = options.endpoint ?? "http://localhost:8000/chat";
-            this.chat = new ChatHttpKernel({ endpoint });
+            const model = options.model;
+            this.chat = new ChatHttpKernel({ model });
           }
 
           async executeRequest(content: any): Promise<any> {
@@ -176,7 +171,7 @@ const container = {
             return {
               status: "ok",
               protocol_version: "5.3",
-              implementation: "http-lite-kernel",
+              implementation: "webllm-lite-kernel",
               implementation_version: "0.1.0",
               language_info: {
                 name: "markdown",
@@ -184,7 +179,7 @@ const container = {
                 mimetype: "text/markdown",
                 file_extension: ".md",
               },
-              banner: "HTTP-backed LLM chat kernel",
+              banner: "WebLLM-backed browser chat kernel",
               help_links: [],
             };
           }

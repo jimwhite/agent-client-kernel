@@ -1,48 +1,40 @@
 // lite-kernel/src/ChatHttpKernel.ts
+// Browser-side chat kernel that talks directly to a local WebLLM model
+// via the Vercel AI SDK + @built-in-ai/web-llm.
+
+import { streamText } from "ai";
+import { webLLM } from "@built-in-ai/web-llm";
 
 export interface ChatHttpKernelOptions {
-    endpoint?: string;
+  /**
+   * Optional model identifier for webLLM.
+   * Defaults to a small, fast instruction-tuned model.
+   */
+  model?: string;
+}
+
+export class ChatHttpKernel {
+  private modelName: string;
+
+  constructor(opts: ChatHttpKernelOptions = {}) {
+    this.modelName = opts.model ?? "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+    console.log("[ChatHttpKernel] Using WebLLM model:", this.modelName);
   }
-  
-  export class ChatHttpKernel {
-    private endpoint: string;
-  
-    constructor(opts: ChatHttpKernelOptions = {}) {
-      this.endpoint = opts.endpoint ?? "http://localhost:8001/chat";
-      console.log("[ChatHttpKernel] Using endpoint:", this.endpoint);
+
+  async send(prompt: string): Promise<string> {
+    console.log("[ChatHttpKernel] Sending prompt to WebLLM:", prompt);
+
+    const result = await streamText({
+      model: webLLM(this.modelName),
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    let reply = "";
+    for await (const chunk of result.textStream) {
+      reply += chunk;
     }
-  
-    async send(prompt: string): Promise<string> {
-      console.log("[ChatHttpKernel] Sending prompt:", prompt);
-  
-      const resp = await fetch(this.endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ prompt }),
-      });
-  
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => "");
-        console.error("[ChatHttpKernel] HTTP error", resp.status, text);
-        throw new Error(`HTTP ${resp.status}: ${text || resp.statusText}`);
-      }
-  
-      const data = (await resp.json()) as {
-        reply?: string;
-        error?: string;
-        detail?: string;
-      };
-  
-      if (data.error) {
-        console.error("[ChatHttpKernel] LLM error:", data.error, data.detail);
-        throw new Error(`LLM error: ${data.error} – ${data.detail ?? ""}`);
-      }
-  
-      const reply = data.reply ?? "";
-      console.log("[ChatHttpKernel] Got reply:", reply);
-      return reply;
-    }
+
+    console.log("[ChatHttpKernel] Got reply from WebLLM:", reply);
+    return reply;
   }
-  
+}

@@ -3,7 +3,10 @@ import { BaseKernel, IKernel } from "@jupyterlite/kernel";
 import { ChatHttpKernel } from "./ChatHttpKernel.js";
 
 type KernelOptions = IKernel.IOptions & {
-  endpoint?: string;
+  /**
+   * Optional WebLLM model identifier to pass through to ChatHttpKernel.
+   */
+  model?: string;
 };
 
 export class HttpLiteKernel extends BaseKernel {
@@ -11,8 +14,8 @@ export class HttpLiteKernel extends BaseKernel {
 
   constructor(options: KernelOptions) {
     super(options);
-    const endpoint = options.endpoint ?? "http://localhost:8001/chat";
-    this.chat = new ChatHttpKernel({ endpoint });
+    const model = options.model;
+    this.chat = new ChatHttpKernel({ model });
   }
 
   async executeRequest(content: any): Promise<any> {

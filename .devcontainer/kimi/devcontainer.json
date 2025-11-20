@@ -1,9 +1,8 @@
 {
-    "name": "JupyterLab withAgent Client Kernel",
+    "name": "JupyterLab with Agent Client Kernel - Kimi",
     "build": {
-        "dockerfile": "../Dockerfile"
+        "dockerfile": "Dockerfile"
     },
-    // "remoteUser": "root",
     "forwardPorts": [
         8888
     ],
@@ -15,7 +14,8 @@
     },
     "containerEnv": {
         "JUPYTER_PORT": "8888",
-        "GRANT_SUDO": "yes"
-        // "RESTARTABLE": "yes"
+        "GRANT_SUDO": "yes",
+        "ACP_AGENT_COMMAND": "kimi",
+        "ACP_AGENT_ARGS": ""
     }
 }

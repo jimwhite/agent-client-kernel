@@ -10,10 +10,14 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go as root
-RUN wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz \
-    && tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz \
-    && rm go1.23.4.linux-amd64.tar.gz
+# Install Go as root (supports amd64 and arm64)
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then GOARCH="amd64"; \
+    elif [ "$ARCH" = "aarch64" ]; then GOARCH="arm64"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    wget https://go.dev/dl/go1.23.4.linux-${GOARCH}.tar.gz \
+    && tar -C /usr/local -xzf go1.23.4.linux-${GOARCH}.tar.gz \
+    && rm go1.23.4.linux-${GOARCH}.tar.gz
 
 ENV PATH="/usr/local/go/bin:${PATH}"
 

@@ -1,7 +1,8 @@
 {
     "name": "JupyterLab: cagent ACP",
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "Dockerfile",
+        "context": "../.."
     },
     "forwardPorts": [
         8888

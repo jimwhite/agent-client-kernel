@@ -10,16 +10,13 @@ RUN npm install -g @openai/codex@latest @zed-industries/codex-acp@latest
 
 USER jovyan
 
-COPY --chown=jovyan:users ../.. /home/jovyan/agent-client-kernel
+COPY --chown=jovyan:users . /home/jovyan/agent-client-kernel
 
 WORKDIR /home/jovyan
-
-# Clone the metakernel submodule since .git directory is not copied
-RUN cd /home/jovyan/agent-client-kernel \
-    && git clone -b ipykernel7 https://github.com/jimwhite/metakernel.git metakernel
 
 RUN cd /home/jovyan/agent-client-kernel \
     && pip install --upgrade pip \
     && pip install --upgrade uv jupyter-mcp-tools \
+    && git submodule update --init --recursive \
     && pip install -e . \
     && python -m agentclientkernel install --user

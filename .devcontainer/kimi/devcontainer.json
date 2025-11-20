@@ -1,7 +1,8 @@
 {
     "name": "JupyterLab: Kimi ACP",
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "Dockerfile",
+        "context": "../.."
     },
     "forwardPorts": [
         8888

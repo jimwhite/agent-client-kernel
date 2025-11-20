@@ -1,7 +1,8 @@
 {
     "name": "JupyterLab: Codex ACP",
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "Dockerfile",
+        "context": "../.."
     },
     // "remoteUser": "root",
     "forwardPorts": [

@@ -53,3 +53,25 @@ env/
 ENV/
 .venv
 
+node_modules
+
+# --- JupyterLite build artifacts (keep lite-site/, ignore scratch) ---
+
+# Doit/JupyterLite build scratch
+_output/
+.jupyterlite.doit.db
+
+# Inside lite-site, ignore internal build scratch but keep the site itself
+lite-site/_output/
+lite-site/_output/**/build/
+
+# JupyterLite kernel build artifacts (keep source, ignore build)
+lite-kernel/dist/
+lite-kernel/lib/
+lite-kernel/node_modules/
+
+# Misc generated logs
+acp_gateway.log
+
+# VS Code / Jupyter noise
+Untitled.ipynb

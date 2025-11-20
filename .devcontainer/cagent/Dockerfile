@@ -2,34 +2,25 @@ FROM quay.io/jupyter/minimal-notebook:latest
 
 USER root
 
-# Install Go and build dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
-    wget \
+    curl \
+    ca-certificates \
     git \
     graphviz \
-    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Go as root (supports amd64 and arm64)
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then GOARCH="amd64"; \
-    elif [ "$ARCH" = "aarch64" ]; then GOARCH="arm64"; \
-    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
-    wget https://go.dev/dl/go1.23.4.linux-${GOARCH}.tar.gz \
-    && tar -C /usr/local -xzf go1.23.4.linux-${GOARCH}.tar.gz \
-    && rm go1.23.4.linux-${GOARCH}.tar.gz
-
-ENV PATH="/usr/local/go/bin:${PATH}"
 
 USER jovyan
 
-# Clone and build cagent
-RUN git clone https://github.com/docker/cagent.git /tmp/cagent \
-    && cd /tmp/cagent \
-    && go build -o cagent . \
-    && mkdir -p /home/jovyan/.local/bin \
-    && cp cagent /home/jovyan/.local/bin/ \
-    && rm -rf /tmp/cagent
+# Install cagent using pre-built binaries from GitHub releases
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then CAGENT_ARCH="amd64"; \
+    elif [ "$ARCH" = "aarch64" ]; then CAGENT_ARCH="arm64"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    mkdir -p /home/jovyan/.local/bin && \
+    curl -fsSL "https://github.com/docker/cagent/releases/latest/download/cagent-linux-${CAGENT_ARCH}" \
+         -o /home/jovyan/.local/bin/cagent && \
+    chmod +x /home/jovyan/.local/bin/cagent
 
 ENV PATH="/home/jovyan/.local/bin:${PATH}"
 

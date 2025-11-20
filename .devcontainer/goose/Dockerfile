@@ -2,32 +2,20 @@ FROM quay.io/jupyter/minimal-notebook:latest
 
 USER root
 
-# Install Rust and build dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     curl \
-    build-essential \
-    pkg-config \
-    libssl-dev \
-    libdbus-1-dev \
-    protobuf-compiler \
-    libprotobuf-dev \
     ca-certificates \
     git \
     graphviz \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust as jovyan user
 USER jovyan
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/home/jovyan/.cargo/bin:${PATH}"
 
-# Clone and build Goose
-RUN git clone https://github.com/block/goose.git /tmp/goose \
-    && cd /tmp/goose \
-    && cargo build --release --package goose-cli \
-    && mkdir -p /home/jovyan/.local/bin \
-    && cp target/release/goose /home/jovyan/.local/bin/ \
-    && rm -rf /tmp/goose
+# Install Goose using the official install script
+RUN mkdir -p /home/jovyan/.local/bin && \
+    curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | \
+    GOOSE_BIN_DIR=/home/jovyan/.local/bin CONFIGURE=false bash
 
 ENV PATH="/home/jovyan/.local/bin:${PATH}"
 

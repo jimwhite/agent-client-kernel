@@ -5,13 +5,14 @@ RUN apt-get update && apt-get install -y \
     graphviz \
     git \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 USER jovyan
 
-# Install Kimi CLI using pip
-RUN pip install --upgrade pip \
-    && pip install kimi-cli
+# Install uv and use it to install Kimi CLI (recommended method)
+RUN pip install --upgrade pip uv && \
+    uv tool install --python 3.13 kimi-cli
 
 COPY --chown=jovyan:users ../.. /home/jovyan/agent-client-kernel
 

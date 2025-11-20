@@ -1,5 +1,5 @@
 {
-    "name": "JupyterLab with Agent Client Kernel - Kimi",
+    "name": "JupyterLab: Kimi ACP",
     "build": {
         "dockerfile": "Dockerfile"
     },

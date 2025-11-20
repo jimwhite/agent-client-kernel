@@ -1,5 +1,5 @@
 {
-    "name": "JupyterLab with Agent Client Kernel - Goose",
+    "name": "JupyterLab: Goose ACP",
     "build": {
         "dockerfile": "Dockerfile"
     },

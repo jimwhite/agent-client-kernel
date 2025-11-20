@@ -1,5 +1,5 @@
 {
-    "name": "JupyterLab with Agent Client Kernel - Gemini",
+    "name": "JupyterLab: Gemini ACP",
     "build": {
         "dockerfile": "Dockerfile"
     },

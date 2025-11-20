@@ -1,5 +1,5 @@
 {
-    "name": "JupyterLab with Agent Client Kernel - Codex",
+    "name": "JupyterLab: Codex ACP",
     "build": {
         "dockerfile": "Dockerfile"
     },

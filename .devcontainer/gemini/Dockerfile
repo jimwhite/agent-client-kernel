@@ -12,7 +12,7 @@ RUN apt-get update && sudo apt-get install -y \
     ca-certificates
 
 # Install Gemini CLI from npm
-RUN npm install -g @google-ai/gemini-cli --unsafe-perm
+RUN npm install -g @google/gemini-cli --unsafe-perm
 
 USER jovyan
 

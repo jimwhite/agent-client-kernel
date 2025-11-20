@@ -16,6 +16,6 @@
         "JUPYTER_PORT": "8888",
         "GRANT_SUDO": "yes",
         "ACP_AGENT_COMMAND": "gemini",
-        "ACP_AGENT_ARGS": ""
+        "ACP_AGENT_ARGS": "--experimental-acp"
     }
 }

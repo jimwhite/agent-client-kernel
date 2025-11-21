@@ -1,0 +1,28 @@
+{
+  "name": "lite-kernel",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build:ts": "tsc --project tsconfig.json",
+    "build": "npm run build:ts && esbuild ./lib/federation.js --bundle --format=iife --outfile=dist/index.js",
+    "clean": "rm -rf lib dist"
+  },
+  "dependencies": {
+    "@built-in-ai/web-llm": "0.3.1",
+    "ai": "5.0.98",
+    "@jupyterlite/kernel": "0.6.4",
+    "@jupyterlab/application": "4.4.5",
+    "@jupyterlab/coreutils": "6.4.5",
+    "@jupyterlab/services": "7.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.0.0"
+  },
+  "jupyterlab": {
+    "extension": true,
+    "outputDir": "dist"
+  }
+}

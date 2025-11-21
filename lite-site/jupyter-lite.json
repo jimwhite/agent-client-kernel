@@ -1,0 +1,15 @@
+{
+  "jupyter-config-data": {
+    "appName": "Agent",
+    "baseUrl": "/",
+    "appUrl": "/lab",
+    "exposeAppInBrowser": true,
+    "federated_extensions": [
+      {
+        "name": "lite-kernel",
+        "load": "index.js",
+        "extension": "./index"
+      }
+    ]
+  }
+}

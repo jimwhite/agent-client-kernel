@@ -128,6 +128,19 @@ To add it to the agent's MCP configuration:
    ```
 See examples/jupyter-mcp.ipynb.
 
+## Building the Lite site
+
+To rebuild the browser deliverable in `lite-site/_output/` with the HTTP chat kernel bundled:
+
+1. Install the JupyterLite CLI once (for example): `python3 -m pip install --user jupyterlite`.
+2. From the repo root run `make lite` (which calls `scripts/build-lite.sh`).
+
+The helper script will:
+- compile the TypeScript sources in `lite-kernel`
+- copy the resulting bundle into `lite-site/extensions/lite-kernel/`
+- run `jupyter lite build --federated-extension-path` so `_output/jupyter-lite.json` advertises the `lite-kernel` federated extension and makes `http-chat` the default kernel.
+
+
 ### Magic Commands
 
 The kernel provides a unified `%agent` magic command for all configuration and session management:

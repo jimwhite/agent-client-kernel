@@ -1,0 +1,24 @@
+{
+    "name": "JupyterLab: Codex ACP",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "../.."
+    },
+    // "remoteUser": "root",
+    "forwardPorts": [
+        8888
+    ],
+    "portsAttributes": {
+        "8888": {
+            "label": "Jupyter",
+            "requireLocalPort": true
+        }
+    },
+    "containerEnv": {
+        "JUPYTER_PORT": "8888",
+        "GRANT_SUDO": "yes",
+        "ACP_AGENT_COMMAND": "codex-acp",
+        "ACP_AGENT_ARGS": ""
+        // "RESTARTABLE": "yes"
+    }
+}

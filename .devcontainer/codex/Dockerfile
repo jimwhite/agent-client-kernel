@@ -15,8 +15,9 @@ COPY --chown=jovyan:users . /home/jovyan/agent-client-kernel
 WORKDIR /home/jovyan
 
 RUN cd /home/jovyan/agent-client-kernel \
-    && pip install --upgrade pip \
-    && pip install --upgrade uv jupyter-mcp-tools \
+    && conda install uv \
     && git submodule update --init --recursive \
-    && pip install -e . \
-    && python -m agentclientkernel install --user
+    && uv sync --locked --all-extras --dev \
+    && uv pip install -e . \
+    && uv pip install jupyter-mcp-tools 
+    # && uv run python -m agent_client_kernel install --user

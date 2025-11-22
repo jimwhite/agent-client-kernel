@@ -82,7 +82,12 @@ const container = {
 
         // Import JupyterLab/JupyterLite modules from shared scope
         const { BaseKernel, IKernelSpecs } = await importShared('@jupyterlite/kernel');
-        const { KernelMessage } = await importShared('@jupyterlab/services');
+        const { Widget } = await importShared('@lumino/widgets');
+
+        const { ReactWidget } = await importShared('@jupyterlab/apputils');
+        const React = await importShared('react');
+        const { HTMLSelect } = await importShared('@jupyterlab/ui-components');
+
 
         console.log("[lite-kernel/federation] Got BaseKernel from shared scope:", BaseKernel);
 
@@ -311,74 +316,81 @@ const container = {
               console.error("[http-chat-kernel] ===== REGISTRATION ERROR =====", error);
             }
 
-            // --- WebLLM model selector in notebook toolbar ---
             if (typeof document !== "undefined") {
-              const attachToToolbars = () => {
-                const toolbars = document.querySelectorAll(".jp-NotebookPanel-toolbar");
-                toolbars.forEach((tb) => {
-                  const host = tb as HTMLElement;
-                  if (host.querySelector(".webllm-model-toolbar")) {
-                    return;
-                  }
-
-                  const item = document.createElement("div");
-                  item.className = "jp-Toolbar-item webllm-model-toolbar";
-
-                  const label = document.createElement("span");
-                  label.textContent = "WebLLM:";
-                  label.className = "webllm-model-label";
-                  label.style.marginRight = "4px";
-                  item.appendChild(label);
-
-                  const select = document.createElement("select");
-                  select.className = "jp-DefaultKernel-select";
+              class WebLLMToolbarWidget extends ReactWidget {
+                constructor() {
+                  super();
+                  // Make this widget look like the cell-type widget at the toolbar-item level
+                  this.addClass("jp-Notebook-toolbarCellType");
+                  this.addClass("webllm-model-toolbar");
+                }
+            
+                render() {
                   const saved =
                     window.localStorage.getItem("webllm:modelId") ?? DEFAULT_WEBLLM_MODEL;
-                  WEBLLM_MODELS.forEach((id) => {
-                    const opt = document.createElement("option");
-                    opt.value = id;
-                    opt.textContent = id;
-                    if (id === saved) opt.selected = true;
-                    select.appendChild(opt);
-                  });
-
-                  // expose current model globally so ChatHttpKernel can read it
-                  window.webllmModelId = saved;
-                  select.onchange = () => {
-                    window.webllmModelId = select.value;
-                    window.localStorage.setItem("webllm:modelId", select.value);
+                
+                  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+                    const value = event.target.value;
+                    if (!value) {
+                      return;
+                    }
+                    window.webllmModelId = value;
+                    window.localStorage.setItem("webllm:modelId", value);
                   };
-                  item.appendChild(select);
-
-                  host.appendChild(item);
-                });
+                
+                  return React.createElement(
+                    HTMLSelect,
+                    {
+                      className: "jp-Notebook-toolbarCellTypeDropdown",
+                      defaultValue: saved,                // <- use defaultValue here
+                      onChange: handleChange,
+                      "aria-label": "WebLLM model",
+                      title: "Select the WebLLM model",
+                    },
+                    WEBLLM_MODELS.map((id) =>
+                      React.createElement("option", { key: id, value: id }, id)
+                    )
+                  );
+                }
+                
+              }
+            
+              const webllmToolbarExtension = {
+                createNew: (panel: any) => {
+                  const widget = new WebLLMToolbarWidget();
+            
+                  // Position relative to other items; tweak index as desired
+                  panel.toolbar.insertItem(10, "webllmModel", widget);
+            
+                  return widget;
+                },
               };
-
-              // Initial attach and observe for new notebook panels
-              attachToToolbars();
-              const observer = new MutationObserver(() => attachToToolbars());
-              observer.observe(document.body, { childList: true, subtree: true });
-
-              // Listen for progress events globally and update all toolbars
+            
+              app.docRegistry.addWidgetExtension("Notebook", webllmToolbarExtension);
+            
+              // Progress text updates stay the same
               window.addEventListener("webllm:model-progress", (ev: any) => {
                 const { progress: p, text } = ev.detail;
                 const labels = document.querySelectorAll(
-                  ".webllm-model-label"
-                ) as NodeListOf<HTMLElement>;
-
-                const pct =
+                  ".webllm-model-toolbar .jp-Notebook-toolbarCellTypeDropdown"
+                ) as NodeListOf<HTMLSelectElement>;
+            
+                const suffix =
                   typeof p === "number" && p > 0 && p < 1
                     ? ` ${Math.round(p * 100)}%`
                     : p === 1
                     ? " ready"
                     : "";
-
+            
+                // Here I’m updating the <select> title, not the visible text (since options are the models).
                 labels.forEach((el) => {
-                  el.textContent = `WebLLM:${pct}`;
-                  el.title = text ?? "";
+                  el.title = text ? `${text}${suffix}` : `WebLLM${suffix}`;
                 });
               });
             }
+            
+      
+      
           },
         };
 

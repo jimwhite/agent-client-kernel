@@ -352,7 +352,6 @@ const container = {
                     )
                   );
                 }
-                
               }
             
               const webllmToolbarExtension = {

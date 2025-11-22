@@ -3,6 +3,7 @@
 
 import { streamText } from "ai";
 import { webLLM } from "@built-in-ai/web-llm";
+import { WEBLLM_MODELS, DEFAULT_WEBLLM_MODEL } from "./models.js";
 
 declare const window: any;
 
@@ -87,18 +88,69 @@ const container = {
 
         // Define WebLLM-backed Chat kernel inline (browser-only, no HTTP)
         class ChatHttpKernel {
-          private modelName: string;
+          private modelName!: string;
+          private model!: ReturnType<typeof webLLM>;
+          private readonly initialModelOverride?: string;
 
           constructor(opts: any = {}) {
-            this.modelName = opts.model ?? "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+            this.initialModelOverride = opts.model;
+            this.ensureModelUpToDate();
             console.log("[ChatHttpKernel] Using WebLLM model:", this.modelName);
           }
 
+          /**
+           * Ensure that this.model / this.modelName match the currently-selected model.
+           * This lets users change the dropdown without needing to reload the page.
+           */
+          private ensureModelUpToDate() {
+            const globalModel =
+              typeof window !== "undefined" ? window.webllmModelId : undefined;
+
+            const targetName =
+              this.initialModelOverride ?? globalModel ?? DEFAULT_WEBLLM_MODEL;
+
+            if (this.model && this.modelName === targetName) {
+              return;
+            }
+
+            this.modelName = targetName;
+            this.model = webLLM(this.modelName, {
+              initProgressCallback: (report) => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(
+                    new CustomEvent("webllm:model-progress", { detail: report })
+                  );
+                }
+              },
+            });
+          }
+
           async send(prompt: string): Promise<string> {
-            console.log("[ChatHttpKernel] Sending prompt to WebLLM:", prompt);
+            // Pick up any model change from the toolbar before each request
+            this.ensureModelUpToDate();
+            console.log(
+              "[ChatHttpKernel] Sending prompt to WebLLM:",
+              prompt,
+              "using model:",
+              this.modelName
+            );
+
+            const availability = await this.model.availability();
+            if (availability === "unavailable") {
+              throw new Error("Browser does not support WebLLM / WebGPU.");
+            }
+            if (availability === "downloadable" || availability === "downloading") {
+              await this.model.createSessionWithProgress((report) => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(
+                    new CustomEvent("webllm:model-progress", { detail: report })
+                  );
+                }
+              });
+            }
 
             const result = await streamText({
-              model: webLLM(this.modelName),
+              model: this.model,
               messages: [{ role: "user", content: prompt }],
             });
 
@@ -257,6 +309,75 @@ const container = {
               console.log("[http-chat-kernel] Display name: HTTP Chat (ACP)");
             } catch (error) {
               console.error("[http-chat-kernel] ===== REGISTRATION ERROR =====", error);
+            }
+
+            // --- WebLLM model selector in notebook toolbar ---
+            if (typeof document !== "undefined") {
+              const attachToToolbars = () => {
+                const toolbars = document.querySelectorAll(".jp-NotebookPanel-toolbar");
+                toolbars.forEach((tb) => {
+                  const host = tb as HTMLElement;
+                  if (host.querySelector(".webllm-model-toolbar")) {
+                    return;
+                  }
+
+                  const item = document.createElement("div");
+                  item.className = "jp-Toolbar-item webllm-model-toolbar";
+
+                  const label = document.createElement("span");
+                  label.textContent = "WebLLM:";
+                  label.className = "webllm-model-label";
+                  label.style.marginRight = "4px";
+                  item.appendChild(label);
+
+                  const select = document.createElement("select");
+                  select.className = "jp-DefaultKernel-select";
+                  const saved =
+                    window.localStorage.getItem("webllm:modelId") ?? DEFAULT_WEBLLM_MODEL;
+                  WEBLLM_MODELS.forEach((id) => {
+                    const opt = document.createElement("option");
+                    opt.value = id;
+                    opt.textContent = id;
+                    if (id === saved) opt.selected = true;
+                    select.appendChild(opt);
+                  });
+
+                  // expose current model globally so ChatHttpKernel can read it
+                  window.webllmModelId = saved;
+                  select.onchange = () => {
+                    window.webllmModelId = select.value;
+                    window.localStorage.setItem("webllm:modelId", select.value);
+                  };
+                  item.appendChild(select);
+
+                  host.appendChild(item);
+                });
+              };
+
+              // Initial attach and observe for new notebook panels
+              attachToToolbars();
+              const observer = new MutationObserver(() => attachToToolbars());
+              observer.observe(document.body, { childList: true, subtree: true });
+
+              // Listen for progress events globally and update all toolbars
+              window.addEventListener("webllm:model-progress", (ev: any) => {
+                const { progress: p, text } = ev.detail;
+                const labels = document.querySelectorAll(
+                  ".webllm-model-label"
+                ) as NodeListOf<HTMLElement>;
+
+                const pct =
+                  typeof p === "number" && p > 0 && p < 1
+                    ? ` ${Math.round(p * 100)}%`
+                    : p === 1
+                    ? " ready"
+                    : "";
+
+                labels.forEach((el) => {
+                  el.textContent = `WebLLM:${pct}`;
+                  el.title = text ?? "";
+                });
+              });
             }
           },
         };

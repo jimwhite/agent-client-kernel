@@ -1,5 +1,5 @@
 import { JupyterFrontEnd, JupyterFrontEndPlugin } from "@jupyterlab/application";
-// ❌ remove this: import { IKernelSpecs } from "@jupyterlite/kernel";
+import { WEBLLM_MODELS, DEFAULT_WEBLLM_MODEL } from "./models.js";
 
 import { HttpLiteKernel } from "./kernel.js";
 
@@ -43,6 +43,65 @@ const httpChatKernelPlugin: JupyterFrontEndPlugin<void> = {
     });
 
     console.log("[http-chat-kernel] Kernel spec 'http-chat' registered");
+
+    // --- WebLLM model selector + progress bar ---
+    if (typeof document !== "undefined") {
+      const bar = document.createElement("div");
+      bar.style.position = "fixed";
+      bar.style.top = "8px";
+      bar.style.right = "8px";
+      bar.style.zIndex = "9999";
+      bar.style.padding = "4px 8px";
+      bar.style.background = "rgba(0,0,0,0.7)";
+      bar.style.color = "#fff";
+      bar.style.fontSize = "12px";
+      bar.style.borderRadius = "4px";
+      bar.style.display = "flex";
+      bar.style.gap = "4px";
+      bar.style.alignItems = "center";
+
+      const label = document.createElement("span");
+      label.textContent = "WebLLM model:";
+      bar.appendChild(label);
+
+      const select = document.createElement("select");
+      const saved =
+        window.localStorage.getItem("webllm:modelId") ?? DEFAULT_WEBLLM_MODEL;
+      WEBLLM_MODELS.forEach((id) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = id;
+        if (id === saved) opt.selected = true;
+        select.appendChild(opt);
+      });
+      // expose current model globally so ChatHttpKernel can read it
+      window.webllmModelId = saved;
+      select.onchange = () => {
+        window.webllmModelId = select.value;
+        window.localStorage.setItem("webllm:modelId", select.value);
+      };
+      bar.appendChild(select);
+
+      const progress = document.createElement("progress");
+      progress.max = 1;
+      progress.value = 0;
+      progress.style.width = "120px";
+      progress.style.display = "none";
+      bar.appendChild(progress);
+
+      const status = document.createElement("span");
+      status.textContent = "";
+      bar.appendChild(status);
+
+      window.addEventListener("webllm:model-progress", (ev: any) => {
+        const { progress: p, text } = ev.detail;
+        progress.style.display = p > 0 && p < 1 ? "inline-block" : "none";
+        progress.value = p ?? 0;
+        status.textContent = text ?? "";
+      });
+
+      document.body.appendChild(bar);
+    }
   }
 };
 

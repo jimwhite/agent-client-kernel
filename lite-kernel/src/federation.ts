@@ -3,6 +3,7 @@
 
 import { streamText } from "ai";
 import { webLLM } from "@built-in-ai/web-llm";
+import { WEBLLM_MODELS, DEFAULT_WEBLLM_MODEL } from "./models.js";
 
 declare const window: any;
 
@@ -81,24 +82,80 @@ const container = {
 
         // Import JupyterLab/JupyterLite modules from shared scope
         const { BaseKernel, IKernelSpecs } = await importShared('@jupyterlite/kernel');
-        const { KernelMessage } = await importShared('@jupyterlab/services');
+        const { Widget } = await importShared('@lumino/widgets');
+
+        const { ReactWidget } = await importShared('@jupyterlab/apputils');
+        const React = await importShared('react');
+        const { HTMLSelect } = await importShared('@jupyterlab/ui-components');
+
 
         console.log("[lite-kernel/federation] Got BaseKernel from shared scope:", BaseKernel);
 
         // Define WebLLM-backed Chat kernel inline (browser-only, no HTTP)
         class ChatHttpKernel {
-          private modelName: string;
+          private modelName!: string;
+          private model!: ReturnType<typeof webLLM>;
+          private readonly initialModelOverride?: string;
 
           constructor(opts: any = {}) {
-            this.modelName = opts.model ?? "Llama-3.2-3B-Instruct-q4f16_1-MLC";
+            this.initialModelOverride = opts.model;
+            this.ensureModelUpToDate();
             console.log("[ChatHttpKernel] Using WebLLM model:", this.modelName);
           }
 
+          /**
+           * Ensure that this.model / this.modelName match the currently-selected model.
+           * This lets users change the dropdown without needing to reload the page.
+           */
+          private ensureModelUpToDate() {
+            const globalModel =
+              typeof window !== "undefined" ? window.webllmModelId : undefined;
+
+            const targetName =
+              this.initialModelOverride ?? globalModel ?? DEFAULT_WEBLLM_MODEL;
+
+            if (this.model && this.modelName === targetName) {
+              return;
+            }
+
+            this.modelName = targetName;
+            this.model = webLLM(this.modelName, {
+              initProgressCallback: (report) => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(
+                    new CustomEvent("webllm:model-progress", { detail: report })
+                  );
+                }
+              },
+            });
+          }
+
           async send(prompt: string): Promise<string> {
-            console.log("[ChatHttpKernel] Sending prompt to WebLLM:", prompt);
+            // Pick up any model change from the toolbar before each request
+            this.ensureModelUpToDate();
+            console.log(
+              "[ChatHttpKernel] Sending prompt to WebLLM:",
+              prompt,
+              "using model:",
+              this.modelName
+            );
+
+            const availability = await this.model.availability();
+            if (availability === "unavailable") {
+              throw new Error("Browser does not support WebLLM / WebGPU.");
+            }
+            if (availability === "downloadable" || availability === "downloading") {
+              await this.model.createSessionWithProgress((report) => {
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(
+                    new CustomEvent("webllm:model-progress", { detail: report })
+                  );
+                }
+              });
+            }
 
             const result = await streamText({
-              model: webLLM(this.modelName),
+              model: this.model,
               messages: [{ role: "user", content: prompt }],
             });
 
@@ -258,6 +315,81 @@ const container = {
             } catch (error) {
               console.error("[http-chat-kernel] ===== REGISTRATION ERROR =====", error);
             }
+
+            if (typeof document !== "undefined") {
+              class WebLLMToolbarWidget extends ReactWidget {
+                constructor() {
+                  super();
+                  // Make this widget look like the cell-type widget at the toolbar-item level
+                  this.addClass("jp-Notebook-toolbarCellType");
+                  this.addClass("webllm-model-toolbar");
+                }
+            
+                render() {
+                  const saved =
+                    window.localStorage.getItem("webllm:modelId") ?? DEFAULT_WEBLLM_MODEL;
+                
+                  const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+                    const value = event.target.value;
+                    if (!value) {
+                      return;
+                    }
+                    window.webllmModelId = value;
+                    window.localStorage.setItem("webllm:modelId", value);
+                  };
+                
+                  return React.createElement(
+                    HTMLSelect,
+                    {
+                      className: "jp-Notebook-toolbarCellTypeDropdown",
+                      defaultValue: saved,                // <- use defaultValue here
+                      onChange: handleChange,
+                      "aria-label": "WebLLM model",
+                      title: "Select the WebLLM model",
+                    },
+                    WEBLLM_MODELS.map((id) =>
+                      React.createElement("option", { key: id, value: id }, id)
+                    )
+                  );
+                }
+              }
+            
+              const webllmToolbarExtension = {
+                createNew: (panel: any) => {
+                  const widget = new WebLLMToolbarWidget();
+            
+                  // Position relative to other items; tweak index as desired
+                  panel.toolbar.insertItem(10, "webllmModel", widget);
+            
+                  return widget;
+                },
+              };
+            
+              app.docRegistry.addWidgetExtension("Notebook", webllmToolbarExtension);
+            
+              // Progress text updates stay the same
+              window.addEventListener("webllm:model-progress", (ev: any) => {
+                const { progress: p, text } = ev.detail;
+                const labels = document.querySelectorAll(
+                  ".webllm-model-toolbar .jp-Notebook-toolbarCellTypeDropdown"
+                ) as NodeListOf<HTMLSelectElement>;
+            
+                const suffix =
+                  typeof p === "number" && p > 0 && p < 1
+                    ? ` ${Math.round(p * 100)}%`
+                    : p === 1
+                    ? " ready"
+                    : "";
+            
+                // Here I’m updating the <select> title, not the visible text (since options are the models).
+                labels.forEach((el) => {
+                  el.title = text ? `${text}${suffix}` : `WebLLM${suffix}`;
+                });
+              });
+            }
+            
+      
+      
           },
         };
 
